@@ -57,7 +57,7 @@ def identifyTargets():
         approx = cv2.approxPolyDP(c, 0.01 * peri, True)
 
         # ensure that the approximated contour is "roughly" rectangular
-        if len(approx) >= 4 and len(approx) <= 7:
+        if len(approx) >= 4 and len(approx) <= 6:
             # compute the bounding box of the approximated contour and
             # use the bounding box to compute the aspect ratio
             (x, y, w, h) = cv2.boundingRect(approx)
@@ -71,8 +71,7 @@ def identifyTargets():
             # compute whether or not the width and height, solidity, and
             # aspect ratio of the contour falls within appropriate bounds
             keepDims = w > 10 and h > 10
-            keepSolidity = solidity > 0.9
-            # keepSolidity = True
+            keepSolidity = solidity > 0.8
             keepAspectRatio = aspectRatio >= 0.8 and aspectRatio <= 1.2
 
             # ensure that the contour passes all our tests
@@ -116,17 +115,20 @@ def main():
         # grab the raw NumPy array representing the image, then initialize the timestamp
         # and occupied/unoccupied text
 
-        # Add the next image to process. If it blocks and times out, try to put the next frame
+        # Add the next image to process. If it blocks and times out, continue without adding a frame
         try:
-            frame_queue.put(frame.array, block=True, timeout=1)
+            frame_queue.put(frame.array, block=False)
+       except Exception:
+           pass
+
+        # Get the final image to be displayed, if there is none, continue the loop
+        try:
+            final_image = final_image_queue.get(block=False)
         except Exception:
             continue
-        
-        # Get the final image to be displayed
-        final_image = final_image_queue.get(block=True, timeout=None)
 
         # draw the status text on the frame
-        cv2.putText(final_image, status, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        # cv2.putText(final_image, status, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         # show the frame and record if a key is pressed
         cv2.imshow("Frame", final_image)
