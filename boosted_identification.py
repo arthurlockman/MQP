@@ -9,12 +9,16 @@ import time
 from multiprocessing import Queue, Process
 
 # Inter-process queues
-original_queue = Queue(maxsize=1)
+original_queue = Queue(maxsize=3)
 final_queue = Queue(maxsize=3)
 
-def identifySquare(int num):
+# Constants
+RESOLUTION = 480
+
+def identifySquare(pid):
     while True:
         image = original_queue.get(block=True, timeout=None)
+        # print '%s got image: %s' % (str(pid), str(int(round(time.time()*1000)) - start_time))
 
         # blue, green, red = cv2.split(frame)
         # Cast the image to grayscale
@@ -24,7 +28,7 @@ def identifySquare(int num):
         blur = cv2.GaussianBlur(gray, (7, 7), 0)
             
         # Detect the edges
-        edge = cv2.Canny(b, 50, 150)
+        edge = cv2.Canny(blur, 50, 150)
 
         # find contours in the edge map
         # edge.copy() -> edge
@@ -72,26 +76,30 @@ def identifySquare(int num):
                     except Exception:
                         print "Divide by zero"
 
-       final_image.put(image, block=True, timeout=None) 
+        final_queue.put(image, block=True, timeout=None) 
 
-def main():
+def putImage():
+    global RESOLUTION
 
     # Set up the PiCamera
     camera = PiCamera()
-    camera.resolution = (1280, 720)
     camera.framerate = 30
-    rawCapture = PiRGBArray(camera, size=(1280, 720))
+
+    if RESOLUTION == 1080:
+        camera.resolution = (1920, 1080)
+        rawCapture = PiRGBArray(camera, size=(1920, 1080))
+    elif RESOLUTION == 720:
+        camera.resolution = (1280, 720)
+        rawCapture = PiRGBArray(camera, size=(1280, 720))
+    elif RESOLUTION == 480:
+        camera.resolution = (640, 480)
+        rawCapture = PiRGBArray(camera, size=(640, 480))
+    else:
+        print 'Wrong Resolution'
+        exit()
 
     # allow the camera to warmup
     sleep(0.1)
-
-    # Start all the processes
-    Process(target=identifySquare).start()
-    Process(target=identifySquare).start()
-    Process(target=identifySquare).start()
-
-    # Start the image processing processes
-    last_time = int(round(time.time()*1000))
 
     # capture frames from the camera
     for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
@@ -100,35 +108,8 @@ def main():
         #frame = frame.array[:, 280:1000] # Crop the image to 720x720 p
 
         # Add the next image to process. If it blocks and times out, continue without adding a frame
-        try:
-            original_queue.put(frame, block=False)
-        except Exception:
-            print 'Queue full'
-
-        # Get the final image to be displayed, if there is none, continue the loop
-        try:
-            final_image = final_queue.get(block=False)
-        except Exception:
-            print 'Queue empty'
-            rawCapture.truncate(0)
-            continue
-
-        # draw the status text on the frame
-        # cv2.putText(final_image, status, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
-        # show the frame and record if a key is pressed
-        cv2.imshow("Frame", final_image)
-        key = cv2.waitKey(1) & 0xFF
-
-        # Print the time between frames
-        current_time = int(round(time.time()*1000))
-        print current_time - last_time
-        print ''
-        last_time = current_time
-
-        # if the 'q' key is pressed, stop the loop
-        if key == ord("q"):
-            break
+        original_queue.put(frame, block=False)
+        # print 'put image: %s' % (str(int(round(time.time()*1000)) - start_time))
 
         # clear the stream in preparation for the next frame
         rawCapture.truncate(0)
@@ -137,6 +118,46 @@ def main():
     camera.release()
     cv2.destroyAllWindows()
     exit()
+
+
+def displayImage():
+    last_time = 0
+    while True:
+        # Get the final image to be displayed, if there is none, continue the loop
+        final_image = final_queue.get(block=True, timeout=None)
+
+        # draw the status text on the frame
+        # cv2.putText(final_image, status, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+        # show the frame and record if a key is pressed
+        cv2.imshow("Frame", final_image)
+        key = cv2.waitKey(1) & 0xFF # DONT DELETE NEED TO SHOW IMAGE
+
+        # Print the time between frames
+        current_time = int(round(time.time()*1000))
+        print current_time - last_time
+        last_time = current_time
+
+
+def main():
+    global start_time
+
+    start_time = int(round(time.time()*1000))
+
+    # Start all the processes
+    P1 = Process(target=identifySquare, args=(1,))
+    P2 = Process(target=identifySquare, args=(2,))
+    P3 = Process(target=identifySquare, args=(3,))
+    disp = Process(target=displayImage)
+    put = Process(target=putImage)
+
+    P1.start()
+    P2.start()
+    P3.start()
+    disp.start()
+    put.start()
+
+    put.join() 
 
 
 if __name__ == '__main__':
