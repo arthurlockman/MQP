@@ -25,7 +25,7 @@ class ImageProcessor(threading.Thread):
                 try:
                     self.stream.seek(0)
                     # Read the image and do some processing on it
-                    img = Image.open(self.stream)
+                    img = numpy.asarray(Image.open(self.stream))
                     frame = img
 
                     # convert the frame to grayscale, blur it, and detect edges
