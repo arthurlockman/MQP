@@ -2,6 +2,7 @@ import io
 import time
 import threading
 import picamera
+from PIL import Image
 
 # Create a pool of image processors
 done = False
@@ -24,12 +25,12 @@ class ImageProcessor(threading.Thread):
                 try:
                     self.stream.seek(0)
                     # Read the image and do some processing on it
-                    #Image.open(self.stream)
+                    img = Image.open(self.stream)
                     #...
                     #...
                     # Set done to True if you want the script to terminate
                     # at some point
-                    #done=True
+                    # done=True
                     current_time = int(round(time.time()*1000))
                 finally:
                     # Reset the stream and event
@@ -53,7 +54,7 @@ with picamera.PiCamera() as camera:
     # Set the framerate appropriately; too fast and the image processors
     # will stall the image pipeline and crash the script
     camera.framerate = 10
-    camera.start_preview()
+    # camera.start_preview()
     time.sleep(2)
     camera.capture_sequence(streams(), use_video_port=True)
 
