@@ -3,37 +3,38 @@ __author__ = 'tuckerhaydon'
 import io
 import cv2
 import time
-import threading
 from PIL import Image
-import argparse
 import cv2
 from picamera import PiCamera
 from picamera.array import PiRGBArray
-from time import sleep
 import numpy as np
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process, Lock, Event
+
+done = False
+lock = Lock()
+pool = []
 
 
 class ImageProcessor(Process):
     def __init__(self):
         super(ImageProcessor, self).__init__()
         self.stream = io.BytesIO()
-        self.event = threading.Event()
+        self.event = Event()
         self.terminated = False
         self.start()
 
-    def return_name(self):
-        return ""
-
     def run(self):
         # This method runs in a separate thread
-        global done
+        global done, lock
         while not self.terminated:
             if self.event.wait(1):
                 try:
                     self.stream.seek(0)
                     # Read the image and do some processing on it
-                    img = numpy.asarray(Image.open(self.stream))
+		    with open('test.png', 'w+') as f:
+			io = io.BytesIO(f.read())
+		    im = Image.open(io)
+                    #img = np.asarray(im)
                     frame = img
 
                     # convert the frame to grayscale, blur it, and detect edges
@@ -87,13 +88,13 @@ class ImageProcessor(Process):
                                     print "Divide by zero"
 
                     # show the frame and record if a key is pressed
-                    cv2.imshow("Frame", frame)
-                    key = cv2.waitKey(1) & 0xFF
+                    # cv2.imshow("Frame", frame)
+                    # key = cv2.waitKey(1) & 0xFF
 
                     # if the 'q' key is pressed, stop the loop
-                    if key == ord("q"):
-                        break
-                        done=True
+                    # if key == ord("q"):
+                    #     break
+                    #     done=True
                 finally:
                     # Reset the stream and event
                     self.stream.seek(0)
@@ -102,9 +103,11 @@ class ImageProcessor(Process):
                     # Return ourselves to the pool
                     with lock:
                         pool.append(self)
-
+	    else:
+		print "Timeout"
 
 def streams():
+    global lock
     while not done:
         with lock:
             processor = pool.pop()
@@ -113,8 +116,9 @@ def streams():
 
 
 def main():
-    with picamera.PiCamera() as camera:
-        pool = [ImageProcessor() for i in range(4)]
+    global pool, lock
+    with PiCamera() as camera:
+        pool = [ImageProcessor() for i in range(1)]
         camera.resolution = (640, 480)
         # Set the framerate appropriately; too fast and the image processors
         # will stall the image pipeline and crash the script
