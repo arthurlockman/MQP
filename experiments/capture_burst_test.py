@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import io
 import time
 import threading
@@ -113,11 +114,11 @@ def streams():
 
 with picamera.PiCamera() as camera:
     global lock, done, pool
-    pool = [ImageProcessor() for i in range (4)]
-    camera.resolution = (1280, 720)
+    pool = [ImageProcessor() for i in range (10)]
+    camera.resolution = (640, 480)
     # Set the framerate appropriately; too fast and the image processors
     # will stall the image pipeline and crash the script
-    camera.framerate = 1
+    camera.framerate = 10
     # camera.start_preview()
     time.sleep(2)
     camera.capture_sequence(streams(), use_video_port=True)
@@ -128,3 +129,5 @@ while pool:
         processor = pool.pop()
     processor.terminated = True
     processor.join()
+
+exit()

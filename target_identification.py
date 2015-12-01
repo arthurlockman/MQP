@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # import the necessary packages
 import argparse
 import cv2
@@ -11,6 +12,7 @@ from multiprocessing import Queue, Process
 # Inter-process queues
 original_queue = Queue(maxsize=3)
 final_queue = Queue(maxsize=3)
+time_queue = Queue(maxsize=3)
 
 # Constants
 RESOLUTION = 480
@@ -103,7 +105,7 @@ def putImage():
 
     # capture frames from the camera
     for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-
+        time_queue.put(int(time.time() * 1000))
         frame = frame.array
         #frame = frame.array[:, 280:1000] # Crop the image to 720x720 p
 
@@ -125,17 +127,18 @@ def displayImage():
     while True:
         # Get the final image to be displayed, if there is none, continue the loop
         final_image = final_queue.get(block=True, timeout=None)
-
         # draw the status text on the frame
         # cv2.putText(final_image, status, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         # show the frame and record if a key is pressed
         cv2.imshow("Frame", final_image)
         key = cv2.waitKey(1) & 0xFF # DONT DELETE NEED TO SHOW IMAGE
+        start_time = time_queue.get()
+        #print "Latency: ", int(time.time() * 1000) - start_time
 
         # Print the time between frames
         current_time = int(round(time.time()*1000))
-        print current_time - last_time
+        # print current_time - last_time
         last_time = current_time
 
 
