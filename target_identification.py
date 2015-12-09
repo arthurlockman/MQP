@@ -8,6 +8,7 @@ from time import sleep
 import numpy as np
 import time
 from multiprocessing import Queue, Process
+import sys
 
 # Inter-process queues
 original_queue = Queue(maxsize=3)
@@ -140,6 +141,7 @@ def displayImage():
         current_time = int(round(time.time()*1000))
         # print current_time - last_time
         last_time = current_time
+        sys.stdout.write(final_image.tostring())
 
 
 def main():
