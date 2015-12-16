@@ -4,6 +4,7 @@
 	A Simple mjpg stream http server
 """
 import cv2
+import cv2.cv as cv
 import Image
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 import StringIO
@@ -46,9 +47,9 @@ class CamHandler(BaseHTTPRequestHandler):
 def main():
 	global capture
 	capture = cv2.VideoCapture(0)
-	capture.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 320);
-	capture.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 240);
-	capture.set(cv2.cv.CV_CAP_PROP_SATURATION,0.2);
+	capture.set(cv.CV_CAP_PROP_FRAME_WIDTH, 320);
+	capture.set(cv.CV_CAP_PROP_FRAME_HEIGHT, 240);
+	capture.set(cv.CV_CAP_PROP_SATURATION,0.2);
 	global img
 	try:
 		server = HTTPServer(('',8080),CamHandler)
