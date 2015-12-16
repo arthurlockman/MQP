@@ -24,7 +24,7 @@ class CamHandler(BaseHTTPRequestHandler):
                     #	continue
                     #imgRGB=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
                     # jpg = Image.fromarray(imgRGB)
-                    jpg = Image.open("test" + i ".jpg")
+                    jpg = Image.open("test" + str(i) + ".jpg")
                     tmpFile = StringIO.StringIO()
                     jpg.save(tmpFile,'JPEG')
                     self.wfile.write("--jpgboundary")
