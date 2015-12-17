@@ -9,6 +9,13 @@ import numpy as np
 import time
 from multiprocessing import Queue, Process
 import sys
+import Image
+import StringIO
+import time
+import CamHandler
+from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+
+capture=None
 
 # Inter-process queues
 original_queue = Queue(maxsize=3)
@@ -18,12 +25,45 @@ time_queue = Queue(maxsize=3)
 # Constants
 RESOLUTION = 480
 
-def identifySquare(pid):
+class CamHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.endswith('.mjpg'):
+            self.send_response(200)
+            self.send_header('Content-type','multipart/x-mixed-replace; boundary=--jpgboundary')
+            self.end_headers()
+            while True:
+                try:
+                    #rc,img = capture.read()
+                    #if not rc:
+                    #   continue
+                    #imgRGB=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+                    # jpg = Image.fromarray(imgRGB)
+
+                    jpg = Image.fromarray(final_queue.get(block=True, timeout=None))
+
+                    tmpFile = StringIO.StringIO()
+                    jpg.save(tmpFile,'JPEG')
+                    self.wfile.write("--jpgboundary")
+                    self.send_header('Content-type','image/jpeg')
+                    self.send_header('Content-length',str(tmpFile.len))
+                    self.end_headers()
+                    jpg.save(self.wfile,'JPEG')
+                except KeyboardInterrupt:
+                    break
+            return
+        if self.path.endswith('.html'):
+            self.send_response(200)
+            self.send_header('Content-type','text/html')
+            self.end_headers()
+            self.wfile.write('<html><head></head><body>')
+            self.wfile.write('<img src="http://boomcopter:8080/cam.mjpg"/>')
+            self.wfile.write('</body></html>')
+            return
+
+def identifySquare():
     while True:
         image = original_queue.get(block=True, timeout=None)
-        # print '%s got image: %s' % (str(pid), str(int(round(time.time()*1000)) - start_time))
 
-        # blue, green, red = cv2.split(frame)
         # Cast the image to grayscale
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -34,7 +74,6 @@ def identifySquare(pid):
         edge = cv2.Canny(blur, 50, 150)
 
         # find contours in the edge map
-        # edge.copy() -> edge
         (_, cnts, _) = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # loop over the contours
@@ -64,7 +103,6 @@ def identifySquare(pid):
                 # ensure that the contour passes all our tests
                 if keepDims and keepSolidity and keepAspectRatio:
                     # draw an outline around the target and update the status
-                    # text
                     cv2.drawContours(image, [approx], -1, (255, 0, 0), 4)
 
                     try:
@@ -106,13 +144,10 @@ def putImage():
 
     # capture frames from the camera
     for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-        time_queue.put(int(time.time() * 1000))
         frame = frame.array
-        #frame = frame.array[:, 280:1000] # Crop the image to 720x720 p
 
         # Add the next image to process. If it blocks and times out, continue without adding a frame
         original_queue.put(frame, block=False)
-        # print 'put image: %s' % (str(int(round(time.time()*1000)) - start_time))
 
         # clear the stream in preparation for the next frame
         rawCapture.truncate(0)
@@ -128,32 +163,19 @@ def displayImage():
     while True:
         # Get the final image to be displayed, if there is none, continue the loop
         final_image = final_queue.get(block=True, timeout=None)
-        # draw the status text on the frame
-        # cv2.putText(final_image, status, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         # show the frame and record if a key is pressed
         cv2.imshow("Frame", final_image)
         key = cv2.waitKey(1) & 0xFF # DONT DELETE NEED TO SHOW IMAGE
-        start_time = time_queue.get()
-        #print "Latency: ", int(time.time() * 1000) - start_time
-
-        # Print the time between frames
-        current_time = int(round(time.time()*1000))
-        # print current_time - last_time
-        last_time = current_time
-        sys.stdout.write(final_image.tostring())
-
 
 def main():
-    global start_time
-
-    start_time = int(round(time.time()*1000))
+    global start_time, capture, img
 
     # Start all the processes
-    P1 = Process(target=identifySquare, args=(1,))
-    P2 = Process(target=identifySquare, args=(2,))
-    P3 = Process(target=identifySquare, args=(3,))
-    disp = Process(target=displayImage)
+    P1 = Process(target=identifySquare)
+    P2 = Process(target=identifySquare)
+    P3 = Process(target=identifySquare)
+    # disp = Process(target=displayImage)
     put = Process(target=putImage)
 
     P1.start()
@@ -162,7 +184,20 @@ def main():
     disp.start()
     put.start()
 
-    put.join() 
+    try:
+        server = HTTPServer(('',8080),CamHandler)
+        print "server started"
+        server.serve_forever()
+    except KeyboardInterrupt:
+        capture.release()
+        server.socket.close()
+
+    P1.join()
+    P2.join()
+    P3.join()
+    disp.join()
+    put.join()
+
 
 
 if __name__ == '__main__':
