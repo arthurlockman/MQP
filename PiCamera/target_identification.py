@@ -12,7 +12,6 @@ import sys
 import Image
 import StringIO
 import time
-import CamHandler
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 
 capture=None
@@ -39,7 +38,7 @@ class CamHandler(BaseHTTPRequestHandler):
                     #imgRGB=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
                     # jpg = Image.fromarray(imgRGB)
 
-                    jpg = Image.fromarray(final_queue.get(block=True, timeout=None))
+                    jpg = Image.fromarray(final_queue.get(block=True, timeout=None), 'RGB')
 
                     tmpFile = StringIO.StringIO()
                     jpg.save(tmpFile,'JPEG')
@@ -56,7 +55,7 @@ class CamHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type','text/html')
             self.end_headers()
             self.wfile.write('<html><head></head><body>')
-            self.wfile.write('<img src="http://boomcopter:8080/cam.mjpg"/>')
+            self.wfile.write('<img src="cam.mjpg"/>')
             self.wfile.write('</body></html>')
             return
 
@@ -147,8 +146,10 @@ def putImage():
         frame = frame.array
 
         # Add the next image to process. If it blocks and times out, continue without adding a frame
-        original_queue.put(frame, block=False)
-
+        try:
+            original_queue.put(frame, block=False)
+        except:
+            pass
         # clear the stream in preparation for the next frame
         rawCapture.truncate(0)
 
@@ -181,7 +182,7 @@ def main():
     P1.start()
     P2.start()
     P3.start()
-    disp.start()
+    # disp.start()
     put.start()
 
     try:
@@ -195,7 +196,7 @@ def main():
     P1.join()
     P2.join()
     P3.join()
-    disp.join()
+    # disp.join()
     put.join()
 
 
