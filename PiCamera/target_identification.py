@@ -19,7 +19,6 @@ capture=None
 # Inter-process queues
 original_queue = Queue(maxsize=3)
 final_queue = Queue(maxsize=3)
-time_queue = Queue(maxsize=3)
 
 # Constants
 RESOLUTION = 480
@@ -32,11 +31,6 @@ class CamHandler(BaseHTTPRequestHandler):
             self.end_headers()
             while True:
                 try:
-                    #rc,img = capture.read()
-                    #if not rc:
-                    #   continue
-                    #imgRGB=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
-                    # jpg = Image.fromarray(imgRGB)
 
                     jpg = Image.fromarray(final_queue.get(block=True, timeout=None), 'RGB')
 

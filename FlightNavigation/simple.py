@@ -56,16 +56,16 @@ def setup():
     # Set up option parsing to get connection string
     parser = argparse.ArgumentParser(description='Print out vehicle state information. '
                                                  'Connects to SITL on local PC by default.')
-    # parser.add_argument('--connect', default='localhost:14550',
+    parser.add_argument('--connect', default='tcp:localhost:14550',
+			help="vehicle connection target. Default 'localhost:14550'")
+    # parser.add_argument('--connect', default='tcp:127.0.0.1:5760',
     # help="vehicle connection target. Default 'localhost:14550'")
-    parser.add_argument('--connect', default='tcp:127.0.0.1:5760',
-                        help="vehicle connection target. Default 'localhost:14550'")
 
     args = parser.parse_args()
 
     # Connect to the Vehicle
     print 'Connecting to vehicle on: %s' % args.connect
-    vehicle = connect(args.connect, wait_ready=True)
+    vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
 
     # Initialize the vehicle
     initialize()
