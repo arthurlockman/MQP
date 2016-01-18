@@ -115,8 +115,8 @@ def printAltitude():
 def main():
 
     setup()
-    p = Thread(target = printAltitude)
-    p.start()
+    # p = Thread(target = printAltitude)
+    # p.start()
 
     while True:
         print "\n---------------------------------------------------------------------------\n"
