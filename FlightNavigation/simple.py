@@ -3,7 +3,6 @@
 from dronekit import connect, VehicleMode, LocationGlobalRelative
 import time
 import argparse
-from threading import Thread
 
 vehicle = None 
 
@@ -32,20 +31,20 @@ def arm():
         time.sleep(1)
 
 
-def takeoff(aTargetAltitude = 10):
+def takeoff(atargetaltitude=10):
     global vehicle
 
     vehicle.mode = VehicleMode("GUIDED")
 
     print "Taking off!"
-    vehicle.simple_takeoff(aTargetAltitude) # Take off to target altitude
+    vehicle.simple_takeoff(atargetaltitude)  # Take off to target altitude
 
     # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command 
     #  after Vehicle.simple_takeoff will execute immediately).
     while True:
-        print " Altitude: ", vehicle.location.global_relative_frame.alt 
-        #Break and return from function just below target altitude.        
-        if vehicle.location.global_relative_frame.alt >= aTargetAltitude*0.95: 
+        print " Altitude: ", vehicle.location.global_relative_frame.alt
+        # Break and return from function just below target altitude.
+        if vehicle.location.global_relative_frame.alt >= atargetaltitude * 0.95:
             print "Reached target altitude"
             break
         time.sleep(1)
@@ -54,10 +53,13 @@ def takeoff(aTargetAltitude = 10):
 def setup():
     global vehicle
 
-    #Set up option parsing to get connection string
-    parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
-    # parser.add_argument('--connect', default='localhost:14550', help="vehicle connection target. Default 'localhost:14550'")
-    parser.add_argument('--connect', default='tcp:127.0.0.1:5760', help="vehicle connection target. Default 'localhost:14550'")
+    # Set up option parsing to get connection string
+    parser = argparse.ArgumentParser(description='Print out vehicle state information. '
+                                                 'Connects to SITL on local PC by default.')
+    # parser.add_argument('--connect', default='localhost:14550',
+    # help="vehicle connection target. Default 'localhost:14550'")
+    parser.add_argument('--connect', default='tcp:127.0.0.1:5760',
+                        help="vehicle connection target. Default 'localhost:14550'")
 
     args = parser.parse_args()
 
@@ -72,7 +74,7 @@ def setup():
     arm()
 
     print "Set default/target airspeed to 3"
-    vehicle.airspeed=3
+    vehicle.airspeed = 3
 
 
 def return_to_launch():
@@ -80,36 +82,36 @@ def return_to_launch():
 
     print "Returning to Launch"
     vehicle.mode = VehicleMode("RTL")
-    while  vehicle.location.global_relative_frame.alt >= 0:
-    	time.sleep(1)
+    while vehicle.location.global_relative_frame.alt >= 0:
+        time.sleep(1)
 
 
 def end_flight():
     global vehicle
 
-    #Close vehicle object before exiting script
+    # Close vehicle object before exiting script
     print "Close vehicle object"
     vehicle.close()
 
     exit()
 
 
-def go_to_coordinate(latitude, longitude, altitude = 10, speed = 5):
+def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
     global vehicle
 
     vehicle.mode = VehicleMode("GUIDED")
     print "Navigating to point"
     point = LocationGlobalRelative(latitude, longitude, altitude)
-    vehicle.simple_goto(point, groundspeed = speed)
+    vehicle.simple_goto(point, groundspeed=speed)
 
     # sleep so we can see the change in map
     time.sleep(30)
 
-def printAltitude():
+
+def print_altitude():
     while True:
         print vehicle.location.global_relative_frame.alt
         time.sleep(1)
-
 
 
 def main():
@@ -129,12 +131,12 @@ def main():
         elif command == "land":
             return_to_launch()
         elif command == "end":
-           end_flight()
+            end_flight()
         elif command == "goto":
             latitude = float(raw_input("Latitude: "))
             longitude = float(raw_input("Longitude: "))
             altitude = float(raw_input("Altitude: "))
-            go_to_coordinate(latitude, longitude, altitude) 
+            go_to_coordinate(latitude, longitude, int(altitude))
         else:
             print "Not a vaild command."
 
