@@ -14,8 +14,10 @@ import StringIO
 import time
 import pickle
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+import socket
 
 capture=None
+client_socket = None
 
 # Inter-process queues
 original_queue = Queue(maxsize=3)
@@ -109,8 +111,10 @@ def identifySquare():
                         cv2.line(image, (startX, cY), (endX, cY), (0, 0, 255), 3)
                         cv2.line(image, (cX, startY), (cX, endY), (0, 0, 255), 3)
                         center = (cX, cY)
+
                         # Serialize the data and stream it to the flight control code.
-                        pickle.dump(center, sys.stdout)
+                        data_string = pickle.dumps(center)
+                        client_socket.send(data_string)
                     except Exception:
                         print "Divide by zero"
 
@@ -168,7 +172,11 @@ def displayImage():
         key = cv2.waitKey(1) & 0xFF # DONT DELETE NEED TO SHOW IMAGE
 
 def main():
-    global start_time, capture, img
+    global start_time, capture, img, client_socket
+
+    # Start the client socket code to stream to the flight control script
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect(('localhost', 5001))
 
     # Start all the processes
     P1 = Process(target=identifySquare)

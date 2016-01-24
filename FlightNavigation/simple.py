@@ -3,8 +3,17 @@
 from dronekit import connect, VehicleMode, LocationGlobalRelative
 import time
 import argparse
+import sys
+import pickle
+from multiprocessing import Queue, Process
+import socket
+import os
 
 vehicle = None 
+server_socket = None
+
+# Queue of data containing the center location of a target
+image_data = Queue(maxsize=1)
 
 
 def initialize():
@@ -53,19 +62,10 @@ def takeoff(atargetaltitude=10):
 def setup():
     global vehicle
 
-    # Set up option parsing to get connection string
-    parser = argparse.ArgumentParser(description='Print out vehicle state information. '
-                                                 'Connects to SITL on local PC by default.')
-    parser.add_argument('--connect', default='tcp:localhost:14550',
-			help="vehicle connection target. Default 'localhost:14550'")
-    # parser.add_argument('--connect', default='tcp:127.0.0.1:5760',
-    # help="vehicle connection target. Default 'localhost:14550'")
-
-    args = parser.parse_args()
-
     # Connect to the Vehicle
-    print 'Connecting to vehicle on: %s' % args.connect
-    vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
+    print "Connecting to the vehicle..."
+    # vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
+    vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
 
     # Initialize the vehicle
     initialize()
@@ -93,8 +93,6 @@ def end_flight():
     print "Close vehicle object"
     vehicle.close()
 
-    exit()
-
 
 def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
     global vehicle
@@ -108,18 +106,47 @@ def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
     time.sleep(30)
 
 
-def print_altitude():
+def getImageData():
+    global image_data
+
     while True:
-        print vehicle.location.global_relative_frame.alt
-        time.sleep(1)
+        client_socket, address = server_socket.accept()
+        print "Connection from ", address
+        while 1:
+            data_string = client_socket.recv(512)
+            try:
+                image_data.get(block=False)
+            except:
+                pass
+            image_data.put(pickle.loads(data_string))
+            # print "RECIEVED:" , pickle.loads(data_string)
+
+def printImageData():
+
+    while True:
+        data = image_data.get()
+        print data
 
 
 def main():
+    global server_socket
 
     setup()
-    # p = Thread(target = printAltitude)
-    # p.start()
 
+    server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    server_socket.bind(("",5001))
+    server_socket.listen(5)
+
+    ImageProcess = Process(target=getImageData)
+    ImageProcess.start()
+
+    # Uncomment these to print the recieved data
+    # ImagePrint = Process(target=printImageData)
+    # ImagePrint.start()
+
+    # os.system('python ../PiCamera/target_identification.py')
+    os.system('python ../PiCamera/client_test.py')
+    
     while True:
         print "\n---------------------------------------------------------------------------\n"
         print "What shall I do next?"
@@ -132,6 +159,8 @@ def main():
             return_to_launch()
         elif command == "end":
             end_flight()
+            ImageProcess.terminate()
+            exit()
         elif command == "goto":
             latitude = float(raw_input("Latitude: "))
             longitude = float(raw_input("Longitude: "))
@@ -140,6 +169,8 @@ def main():
         else:
             print "Not a vaild command."
 
+    while True:
+        pass
 
 if __name__ == '__main__':
     main()
