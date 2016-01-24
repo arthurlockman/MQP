@@ -12,6 +12,7 @@ import sys
 import Image
 import StringIO
 import time
+import pickle
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 
 capture=None
@@ -107,6 +108,9 @@ def identifySquare():
                         (startY, endY) = (int(cY - (h * 0.15)), int(cY + (h * 0.15)))
                         cv2.line(image, (startX, cY), (endX, cY), (0, 0, 255), 3)
                         cv2.line(image, (cX, startY), (cX, endY), (0, 0, 255), 3)
+                        center = (cX, cY)
+                        # Serialize the data and stream it to the flight control code.
+                        pickle.dump(center, sys.stdout)
                     except Exception:
                         print "Divide by zero"
 
