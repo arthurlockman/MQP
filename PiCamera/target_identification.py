@@ -89,7 +89,7 @@ def identifySquare():
 
                 # compute whether or not the width and height, solidity, and
                 # aspect ratio of the contour falls within appropriate bounds
-                keepDims = w > 10 and h > 10
+                keepDims = w > 30 and h > 30
                 keepSolidity = solidity > 0.8
                 keepAspectRatio= aspectRatio >= 0.8 and aspectRatio <= 1.2
 
