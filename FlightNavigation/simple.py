@@ -5,10 +5,12 @@ import time
 import argparse
 import sys
 import pickle
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process, Value
 import socket
 import os
+import math
 
+identified = None
 vehicle = None 
 server_socket = None
 
@@ -107,29 +109,57 @@ def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
 
 
 def getImageData():
-    global image_data
+    global image_data, identified
 
     while True:
         client_socket, address = server_socket.accept()
         print "Connection from ", address
-        while 1:
+        while True:
             data_string = client_socket.recv(512)
             try:
                 image_data.get(block=False)
             except:
                 pass
-            image_data.put(pickle.loads(data_string))
+            data = pickle.loads(data_string)
+            image_data.put(data)
+
+            with identified.value.get_lock():
+                if data != None:
+                    identified.value = 1
+                else:
+                    identified.value = 0
             # print "RECIEVED:" , pickle.loads(data_string)
 
 def printImageData():
 
     while True:
-        data = image_data.get()
-        print data
+        try:
+            data = image_data.get()
+            print data
+        except:
+            pass
+
+
+def circle_POI():
+    global vehicle
+    
+    # The circle radius in cm. Must be incremented by 100 cm.
+    # The tangential speed is 50 cm/s
+    speed = 50
+
+    radius = (int)100
+    rate = (int)math.degrees(2*math.pi*rad / speed)
+
+    vehicle.parameters["CIRCLE_RADIUS"] = radius
+    vehicle.parameters["CIRCLE_RATE"] = rate
+
+    vehicle.mode = VehicleMode("CIRCLE")
 
 
 def main():
-    global server_socket
+    global server_socket, vehicle, identified
+
+    identified = Value('i', 0)
 
     setup()
 
@@ -141,36 +171,64 @@ def main():
     ImageProcess.start()
 
     # Uncomment these to print the recieved data
+    # CAUTION: the data is consumed and will not be usable by another function
     # ImagePrint = Process(target=printImageData)
     # ImagePrint.start()
 
-    # os.system('python ../PiCamera/target_identification.py')
-    os.system('python ../PiCamera/client_test.py')
-    
+    os.system('python ../PiCamera/target_identification.py')
+    # os.system('python ../PiCamera/client_test.py')
+
+    ignore_target = False
+
     while True:
+
+        # If the target has been seen, stop all motion and hold position
+        # Possible to ignore the target if flag set
+        if ignore_target == False:
+            with identified.value.get_lock():
+                if identified.value == 1:
+                    vehicle.mode = VehicleMode("LOITER")
+
         print "\n---------------------------------------------------------------------------\n"
-        print "What shall I do next?"
-        print "Options: takeoff, land, goto, end"
+        print "Options: takeoff, pilot, land, end, stop, goto, circle, ignore, obey"
+
         command = raw_input("What shall I do next?\n")
 
         if command == "takeoff":
-            takeoff(10)
+            takeoff(5)
+
+        elif command == "pilot":
+            vehicle.mode = VehicleMode("SIMPLE")
+
         elif command == "land":
+            ignore_target = True
             return_to_launch()
+
         elif command == "end":
             end_flight()
             ImageProcess.terminate()
             exit()
+
+        elif command == "stop":
+            vehicle.mode = VehicleMode("LOITER")
+
         elif command == "goto":
             latitude = float(raw_input("Latitude: "))
             longitude = float(raw_input("Longitude: "))
             altitude = float(raw_input("Altitude: "))
             go_to_coordinate(latitude, longitude, int(altitude))
+
+        elif command == "circle":
+            circle_POI()
+
+        elif command == "ignore":
+            ignore_target = True
+
+        elif command == "obey":
+            ignore_target = False
+
         else:
             print "Not a vaild command."
-
-    while True:
-        pass
 
 if __name__ == '__main__':
     main()

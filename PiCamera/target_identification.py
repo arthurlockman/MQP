@@ -72,6 +72,8 @@ def identifySquare():
         # find contours in the edge map
         (_, cnts, _) = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        bool found_square = False
+
         # loop over the contours
         for c in cnts:
             # approximate the contour
@@ -113,12 +115,24 @@ def identifySquare():
                         center = (cX, cY)
 
                         # Serialize the data and stream it to the flight control code.
-                        data_string = pickle.dumps(center)
-                        client_socket.send(data_string)
+                        try:
+                            data_string = pickle.dumps(center)
+                            client_socket.send(data_string)
+                            found_square = True
+                        except:
+                            pass
+
                     except Exception:
                         print "Divide by zero"
 
-        final_queue.put(image, block=True, timeout=None) 
+        final_queue.put(image, block=True, timeout=None)
+
+        try:
+            if found_square == False:
+                data_string = pickle.dumps(None)
+                client_socket.send(data_string)
+        except:
+            pass
 
 def putImage():
     global RESOLUTION
@@ -179,10 +193,16 @@ def main():
     client_socket.connect(('localhost', 5001))
 
     # Start all the processes
+
+    # Start the image identification processes
     P1 = Process(target=identifySquare)
     P2 = Process(target=identifySquare)
     P3 = Process(target=identifySquare)
+
+    # Start the display process
     # disp = Process(target=displayImage)
+
+    # Start the raw image retrieval process
     put = Process(target=putImage)
 
     P1.start()
