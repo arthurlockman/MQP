@@ -66,8 +66,8 @@ def setup():
 
     # Connect to the Vehicle
     print "Connecting to the vehicle..."
-    # vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
-    vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
+    vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
+    # vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
 
     # Initialize the vehicle
     initialize()
@@ -147,7 +147,7 @@ def circle_POI():
     # The tangential speed is 50 cm/s
     speed = 50
 
-    radius = (int)100
+    radius = (int)200
     rate = (int)math.degrees(2*math.pi*rad / speed)
 
     vehicle.parameters["CIRCLE_RADIUS"] = radius
@@ -163,19 +163,19 @@ def main():
 
     setup()
 
-    server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    server_socket.bind(("",5001))
-    server_socket.listen(5)
+    # server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    # server_socket.bind(("",5001))
+    # server_socket.listen(5)
 
-    ImageProcess = Process(target=getImageData)
-    ImageProcess.start()
+    # ImageProcess = Process(target=getImageData)
+    # ImageProcess.start()
 
     # Uncomment these to print the recieved data
     # CAUTION: the data is consumed and will not be usable by another function
     # ImagePrint = Process(target=printImageData)
     # ImagePrint.start()
 
-    os.system('python ../PiCamera/target_identification.py')
+    # os.system('python ../PiCamera/target_identification.py')
     # os.system('python ../PiCamera/client_test.py')
 
     ignore_target = False
@@ -184,10 +184,10 @@ def main():
 
         # If the target has been seen, stop all motion and hold position
         # Possible to ignore the target if flag set
-        if ignore_target == False:
-            with identified.value.get_lock():
-                if identified.value == 1:
-                    vehicle.mode = VehicleMode("LOITER")
+        # if ignore_target == False:
+        #     with identified.value.get_lock():
+        #         if identified.value == 1:
+        #             vehicle.mode = VehicleMode("LOITER")
 
         print "\n---------------------------------------------------------------------------\n"
         print "Options: takeoff, pilot, land, end, stop, goto, circle, ignore, obey"
