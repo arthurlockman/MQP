@@ -16,6 +16,8 @@ identified = None
 user_override = None
 vehicle = None 
 image_socket = None
+gps_socket = None
+shell_socket = None
 shutdown = None
 
 # Shared queues
@@ -187,7 +189,7 @@ def shell_handler(command):
 
 
 def process_image_data():
-    global image_data, identified, shutdown
+    global image_data, identified, shutdown, image_socket
 
     client_socket, address = image_socket.accept()
     print "Image socket connected from ", address
@@ -223,9 +225,9 @@ def process_image_data():
                 break
 
 def process_gps_data():
-    global gps_coordinates, shutdown
+    global gps_coordinates, shutdown, gps_socket
 
-    client_socket, address = image_socket.accept()
+    client_socket, address = gps_socket.accept()
     print "GPS socket connected from ", address
 
     while True:
@@ -245,7 +247,7 @@ def process_gps_data():
 
 
 def main():
-    global image_socket, vehicle, identified, shutdown
+    global image_socket, gps_socket, shell_socket vehicle, identified, shutdown
 
     # Multi-core shared variables
     identified = Value('i', 0)
