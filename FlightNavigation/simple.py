@@ -102,7 +102,7 @@ def end_flight():
     vehicle.close()
 
     # Shutdown the other processes
-    with shutdown.value.get_lock():
+    with shutdown.get_lock():
         shutdown.value = 1
 
 
@@ -145,7 +145,7 @@ def check_user_control():
 
     # print value
 
-    if value == SOMETHING:
+    if value < 1450:
         return True
     else:
         return False
@@ -193,8 +193,13 @@ def shell_handler(command):
 def process_image_data():
     global image_data, identified, shutdown, image_socket
 
-    client_socket, address = image_socket.accept()
-    print "Image socket connected from ", address
+    while True:
+        try:
+            client_socket, address = image_socket.accept()
+            print "Image socket connected from ", address
+            break
+        except:
+            pass
 
     while True:
 
@@ -211,9 +216,10 @@ def process_image_data():
             # Add the new data
             data = pickle.loads(data_string)
             image_data.put(data)
+            print data
 
             # If the target has been seen, set the flag
-            with identified.value.get_lock():
+            with identified.get_lock():
                 if data != -1:
                     identified.value = 1
                 else:
@@ -222,15 +228,20 @@ def process_image_data():
             pass
 
         # If it is time to shutdown
-        with shutdown.value.get_lock():
+        with shutdown.get_lock():
             if shutdown.value == 1:
                 break
 
 def process_gps_data():
     global gps_coordinates, shutdown, gps_socket
 
-    client_socket, address = gps_socket.accept()
-    print "GPS socket connected from ", address
+    while True:
+        try:
+            client_socket, address = gps_socket.accept()
+            print "GPS socket connected from ", address
+            break
+        except:
+            pass
 
     while True:
         # gps_socket is non-blocking, so an exception might be raised if there is no data in the socket
@@ -243,22 +254,22 @@ def process_gps_data():
             pass
 
         # If it is time to shut down
-        with shutdown.value.get_lock():
+        with shutdown.get_lock():
             if shutdown.value == 1:
                 break
 
 
 def main():
-    global image_socket, gps_socket, shell_socket vehicle, identified, shutdown
+    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown
 
     # Multi-core shared variables
     identified = Value('i', 0)
     shutdown = Value('i', 0)
 
     # Start the other scripts
-    os.system("gnome-terminal -e 'python ../PiCamera/target_identification.py'")
-    os.system("gnome-terminal -e 'python ./shell.py'")
-    os.system("gnome-terminal -e 'python ../GoToHere/gotohere.py'")
+    # os.system("gnome-terminal -e 'python ../PiCamera/target_identification.py'")
+    # os.system("gnome-terminal -e 'python ./shell.py'")
+    # os.system("gnome-terminal -e 'python ../GoToHere/gotohere.py'")
 
     # os.system('python ../PiCamera/target_identification.py')
     # os.system('python ./shell.py')
@@ -294,8 +305,13 @@ def main():
     GPSProcess.start()
 
     # Connect the shell socket
-    client_socket, address = shell_socket.accept()
-    print "Shell socket connected from ", address
+    while True:
+        try:
+            client_socket, address = shell_socket.accept()
+            print "Shell socket connected from ", address
+            break
+        except:
+            pass
 
     # Initialize and arm the vehicle
     setup()
@@ -318,7 +334,7 @@ def main():
             pass
 
         # If it is time to shut down
-        with shutdown.value.get_lock():
+        with shutdown.get_lock():
             if shutdown.value == 1:
                 break
 

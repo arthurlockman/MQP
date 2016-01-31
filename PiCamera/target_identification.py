@@ -7,7 +7,7 @@ from picamera.array import PiRGBArray
 from time import sleep
 import numpy as np
 import time
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process, Value
 import sys
 import Image
 import StringIO
@@ -15,9 +15,11 @@ import time
 import pickle
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 import socket
+import signal
 
 capture=None
 client_socket = None
+shutdown = None
 
 # Inter-process queues
 original_queue = Queue(maxsize=3)
@@ -56,8 +58,23 @@ class CamHandler(BaseHTTPRequestHandler):
             self.wfile.write('</body></html>')
             return
 
+def signal_handler(signal, frame):
+    global shutdown
+
+    with shutdown.get_lock():
+        shutdown.value = 1
+
 def identifySquare():
+    global shutdown
+
     while True:
+
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                break
+            else:
+                pass
+
         image = original_queue.get(block=True, timeout=None)
 
         # Cast the image to grayscale
@@ -72,7 +89,7 @@ def identifySquare():
         # find contours in the edge map
         (_, cnts, _) = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        bool found_square = False
+        found_square = False
 
         # loop over the contours
         for c in cnts:
@@ -135,7 +152,7 @@ def identifySquare():
             pass
 
 def putImage():
-    global RESOLUTION
+    global RESOLUTION, shutdown
 
     # Set up the PiCamera
     camera = PiCamera()
@@ -159,6 +176,13 @@ def putImage():
 
     # capture frames from the camera
     for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                break
+            else:
+                pass
+
         frame = frame.array
 
         # Add the next image to process. If it blocks and times out, continue without adding a frame
@@ -172,12 +196,19 @@ def putImage():
     # cleanup the camera and close any open windows
     camera.release()
     cv2.destroyAllWindows()
-    exit()
 
 
 def displayImage():
+    global shutdown
     last_time = 0
     while True:
+        
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                break
+            else:
+                pass
+
         # Get the final image to be displayed, if there is none, continue the loop
         final_image = final_queue.get(block=True, timeout=None)
 
@@ -186,7 +217,10 @@ def displayImage():
         key = cv2.waitKey(1) & 0xFF # DONT DELETE NEED TO SHOW IMAGE
 
 def main():
-    global start_time, capture, img, client_socket
+    global start_time, capture, img, client_socket, shutdown
+
+    signal.signal(signal.SIGINT, signal_handler)
+    shutdown = Value('i', 0)
 
     # Start the client socket code to stream to the flight control script
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -200,7 +234,7 @@ def main():
     P3 = Process(target=identifySquare)
 
     # Start the display process
-    # disp = Process(target=displayImage)
+    disp = Process(target=displayImage)
 
     # Start the raw image retrieval process
     capture = Process(target=putImage)
@@ -208,7 +242,7 @@ def main():
     P1.start()
     P2.start()
     P3.start()
-    # disp.start()
+    disp.start()
     capture.start()
 
     try:
@@ -222,7 +256,7 @@ def main():
     P1.join()
     P2.join()
     P3.join()
-    # disp.join()
+    disp.join()
     capture.join()
 
 

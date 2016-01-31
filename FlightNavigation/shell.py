@@ -5,10 +5,16 @@ import socket, pickle
 
 def main():
 
-	client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('localhost', 5003))
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-	while True:
+    while True:
+        try:
+            client_socket.connect(('localhost', 5003))
+            break
+        except:
+            pass
+
+    while True:
 
         print "\n---------------------------------------------------------------------------\n"
         print "Options: takeoff, land, end, stop, circle, goto"
