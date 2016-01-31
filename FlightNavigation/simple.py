@@ -153,6 +153,8 @@ def check_user_control():
 
 def shell_handler(command):
 
+    print command
+
     if command == "takeoff":
         # Blocking
         takeoff(5)
@@ -235,7 +237,7 @@ def process_gps_data():
         try:
             data_string = client_socket.recv(512)
             data = pickle.loads(data_string)
-            # Print data
+            print data
             gps_coordinates.put(data)
         except:
             pass
@@ -252,9 +254,6 @@ def main():
     # Multi-core shared variables
     identified = Value('i', 0)
     shutdown = Value('i', 0)
-
-    # Initialize and arm the vehicle
-    setup()
 
     # Start the other scripts
     os.system("gnome-terminal -e 'python ../PiCamera/target_identification.py'")
@@ -297,6 +296,9 @@ def main():
     # Connect the shell socket
     client_socket, address = shell_socket.accept()
     print "Shell socket connected from ", address
+
+    # Initialize and arm the vehicle
+    setup()
 
     while True:
 
