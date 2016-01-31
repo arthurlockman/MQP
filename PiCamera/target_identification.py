@@ -129,7 +129,7 @@ def identifySquare():
 
         try:
             if found_square == False:
-                data_string = pickle.dumps(None)
+                data_string = pickle.dumps(-1)
                 client_socket.send(data_string)
         except:
             pass
@@ -203,13 +203,13 @@ def main():
     # disp = Process(target=displayImage)
 
     # Start the raw image retrieval process
-    put = Process(target=putImage)
+    capture = Process(target=putImage)
 
     P1.start()
     P2.start()
     P3.start()
     # disp.start()
-    put.start()
+    capture.start()
 
     try:
         server = HTTPServer(('',8080),CamHandler)
@@ -223,7 +223,7 @@ def main():
     P2.join()
     P3.join()
     # disp.join()
-    put.join()
+    capture.join()
 
 
 
