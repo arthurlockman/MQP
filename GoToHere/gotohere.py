@@ -1,6 +1,10 @@
 import SimpleHTTPServer
 import SocketServer
 import cgi
+import socket
+import pickle
+
+# gps_sock = None
 
 class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
@@ -21,13 +25,21 @@ class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         print("======= POST VALUES =======")
         for item in form.list:
             print(item)
-        print("HANDLE LAT/LONG HERE")
+        latlong = form.getvalue('latitude'), form.getvalue('longitude')
+        data_string = pickle.dumps(latlong)
+        print(data_string)
+        gps_sock.send(data_string)
 
-PORT = 8000
 
-Handler = ServerHandler
+if __name__ == '__main__':
+    global gps_sock
+    PORT = 8000
 
-httpd = SocketServer.TCPServer(("", PORT), Handler)
+    Handler = ServerHandler
 
-print "serving at port", PORT
-httpd.serve_forever()
+    httpd = SocketServer.TCPServer(("", PORT), Handler)
+
+    print "serving at port", PORT
+    httpd.serve_forever()
+    gps_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    gps_sock.connect(('localhost', 5002))
