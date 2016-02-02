@@ -11,14 +11,19 @@ import os
 import math
 
 # Global Variables
+vehicle = None
+ignore_target = False
+tangential_speed = 100 # cm/s
+circle_period = sys.maxint
 
+# Process shared flags
 identified = None
-user_override = None
-vehicle = None 
+shutdown = None
+
+# Sockets
 image_socket = None
 gps_socket = None
 shell_socket = None
-shutdown = None
 
 # Shared queues
 image_data = Queue(maxsize=1)
@@ -29,10 +34,10 @@ def setup():
 
     # Connect to the Vehicle
     print "Connecting to the vehicle..."
-    vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
+    # vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
 
     # Uncomment this for the simulator
-    # vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
+    vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
 
     # Initialize the vehicle
     while not vehicle.is_armable:
@@ -61,6 +66,9 @@ def arm():
 
 def takeoff(atargetaltitude=10):
     global vehicle
+
+    # Arm the UAV
+    arm()
 
     vehicle.mode = VehicleMode("GUIDED")
 
@@ -119,19 +127,45 @@ def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
 
 
 def circle_POI():
-    global vehicle
+    global vehicle, ignore_target, tangential_speed, circle_period
     
-    # The circle radius in cm. Must be incremented by 100 cm.
-    # The tangential speed is 50 cm/s
-    speed = 50
+    # Serach for the target
+    ignore_target = False
 
-    radius = int(200)
-    rate = int(math.degrees(2*math.pi*rad / speed))
+    # The circle radius in cm. Max 10000
+    # The tangential speed is 100 cm/s
+    speed = tangential_speed
+
+    # Radius has to be increments of 100 cm and rate has to be in increments of 1 degree
+    radius = int(100)
+    period = 2*math.pi*radius / speed
+    rate = int(360.0/period)
 
     vehicle.parameters["CIRCLE_RADIUS"] = radius
     vehicle.parameters["CIRCLE_RATE"] = rate
 
     vehicle.mode = VehicleMode("CIRCLE")
+
+    # Update the global variable for the next circle
+    circle_period = period
+
+
+def update_circle_params():
+    global vehicle, tangential_speed, circle_period
+
+    current_radius = vehicle.parameters["CIRCLE_RADIUS"]
+    current_rate = vehicle.parameters["CIRCLE_RATE"]
+
+    new_radius = current_radius + 100
+    new_period = 2*math.pi*new_radius / tangential_speed
+    new_rate = int(360.0/new_period)
+
+    vehicle.parameters["CIRCLE_RADIUS"] = new_radius
+    vehicle.parameters["CIRCLE_RATE"] = new_rate
+
+    # Update the global variable for the next circle
+    circle_period = new_period
+
 
 def stop():
     global vehicle
@@ -139,7 +173,7 @@ def stop():
     vehicle.mode = VehicleMode("LOITER")
 
 def check_user_control():
-    global vehicle, user_override
+    global vehicle
 
     value = vehicle.channels['8']
 
@@ -186,6 +220,12 @@ def shell_handler(command):
         except:
             print "GPS queue empty"
 
+    elif command == "ignore":
+        ignore_target = True
+
+    elif command == "search":
+        ignore_target = False
+
     else:
         print "Not a vaild command."
 
@@ -216,7 +256,7 @@ def process_image_data():
             # Add the new data
             data = pickle.loads(data_string)
             image_data.put(data)
-            print data
+            # print data
 
             # If the target has been seen, set the flag
             with identified.get_lock():
@@ -305,6 +345,7 @@ def main():
     GPSProcess.start()
 
     # Connect the shell socket
+    # Must connect to shell before the UAV will arm
     while True:
         try:
             client_socket, address = shell_socket.accept()
@@ -316,6 +357,10 @@ def main():
     # Initialize and arm the vehicle
     setup()
 
+    # Time variable
+    last_time = time.time()
+
+    # Main control loop
     while True:
 
         # Check user override switch
@@ -333,6 +378,19 @@ def main():
         except:
             pass
 
+        # Check if the circle needs to be expanded
+        if vehicle.mode == "CIRCLE" and (time.time() - last_time > circle_period):
+            update_circle_params()
+            last_time = time.time()
+            print "EXPANDING DONG"
+
+        # Check and see if the target has been found
+        # Stop only if it has and you want to stop
+        with identified.get_lock():
+            if identified.value == 1 and ignore_target == False:
+                print "Target Found!!"
+                stop()
+
         # If it is time to shut down
         with shutdown.get_lock():
             if shutdown.value == 1:
@@ -347,6 +405,11 @@ def main():
     print "Image process shut down"
     OverrideChecker.join()
     print "Override checker shut down"
+
+    # Close the sockets
+    image_socket.close()
+    gps_socket.close()
+    shell_socket.close()
 
     
 
