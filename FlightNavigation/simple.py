@@ -355,7 +355,7 @@ def main():
             pass
 
     # Initialize and arm the vehicle
-    setup()
+    # setup()
 
     # Time variable
     last_time = time.time()
