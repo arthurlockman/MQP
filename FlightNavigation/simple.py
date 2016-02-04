@@ -29,15 +29,18 @@ shell_socket = None
 image_data = Queue(maxsize=1)
 gps_coordinates = Queue()
 
+# Simulator flag
+SIM = False
+
 def setup():
     global vehicle
 
     # Connect to the Vehicle
     print "Connecting to the vehicle..."
-    # vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
-
-    # Uncomment this for the simulator
-    vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
+    if SIM == False:
+        vehicle = connect('/dev/ttyAMA0', baud=57600, wait_ready=True)
+    else: 
+        vehicle = connect('tcp:localhost:5760', baud=57600, wait_ready=True)
 
     # Initialize the vehicle
     while not vehicle.is_armable:
@@ -172,6 +175,18 @@ def stop():
 
     vehicle.mode = VehicleMode("LOITER")
 
+def freeze():
+    global vehicle
+
+    vehicle.mode = VehicleMode("POSHOLD")
+
+def clearGPSQueue():
+    global gps_coordinates
+
+    # Deletes and reinstatiates the GPS queue
+    del gps_coordinates
+    gps_coordinates = Queue()
+
 def check_user_control():
     global vehicle
 
@@ -226,6 +241,9 @@ def shell_handler(command):
     elif command == "search":
         ignore_target = False
 
+    elif command == "clearq":
+        clearGPSQueue()
+
     else:
         print "Not a vaild command."
 
@@ -261,6 +279,7 @@ def process_image_data():
             # If the target has been seen, set the flag
             with identified.get_lock():
                 if data != -1:
+                    print "Saw something!"
                     identified.value = 1
                 else:
                     identified.value = 0
@@ -307,10 +326,6 @@ def main():
     shutdown = Value('i', 0)
 
     # Start the other scripts
-    # os.system("gnome-terminal -e 'python ../PiCamera/target_identification.py'")
-    # os.system("gnome-terminal -e 'python ./shell.py'")
-    # os.system("gnome-terminal -e 'python ../GoToHere/gotohere.py'")
-
     # os.system('python ../PiCamera/target_identification.py')
     # os.system('python ./shell.py')
     # os.system('python ../GoToHere/gotohere.py')
@@ -389,7 +404,7 @@ def main():
         with identified.get_lock():
             if identified.value == 1 and ignore_target == False:
                 print "Target Found!!"
-                stop()
+                freeze()
 
         # If it is time to shut down
         with shutdown.get_lock():
@@ -405,6 +420,11 @@ def main():
     print "Image process shut down"
     OverrideChecker.join()
     print "Override checker shut down"
+
+    # Shutdown the sockets
+    image_socket.shutdown()
+    gps_socket.shutdown()
+    shell_socket.shutdown()
 
     # Close the sockets
     image_socket.close()

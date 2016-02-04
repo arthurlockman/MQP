@@ -1,15 +1,14 @@
-#!/usr/local/bin/python
-
 import socket, pickle
 
 
 def main():
-
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	image_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	gps_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     while True:
         try:
-            client_socket.connect(('localhost', 5003))
+            image_socket.connect(('localhost', 5001))
+            gps_socket.connect(('localhost', 5002))
             break
         except:
             pass
@@ -21,9 +20,8 @@ def main():
 
         command = raw_input("What shall I do next?\n")
         data = pickle.dumps(command)
-        client_socket.send(data)
-
+        image_socket.send(data)
 
 
 if __name__ == '__main__':
-    main()
+	main()
