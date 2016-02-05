@@ -72,8 +72,6 @@ def identifySquare():
         with shutdown.get_lock():
             if shutdown.value == 1:
                 break
-            else:
-                pass
 
         image = original_queue.get(block=True, timeout=None)
 
@@ -180,8 +178,6 @@ def putImage():
         with shutdown.get_lock():
             if shutdown.value == 1:
                 break
-            else:
-                pass
 
         frame = frame.array
 
@@ -206,8 +202,6 @@ def displayImage():
         with shutdown.get_lock():
             if shutdown.value == 1:
                 break
-            else:
-                pass
 
         # Get the final image to be displayed, if there is none, continue the loop
         final_image = final_queue.get(block=True, timeout=None)
@@ -219,6 +213,7 @@ def displayImage():
 def main():
     global start_time, capture, img, client_socket, shutdown
 
+    # Control-c handler to shut everything down properly
     signal.signal(signal.SIGINT, signal_handler)
     shutdown = Value('i', 0)
 

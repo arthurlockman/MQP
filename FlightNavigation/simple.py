@@ -30,7 +30,7 @@ image_data = Queue(maxsize=1)
 gps_coordinates = Queue()
 
 # Simulator flag
-SIM = False
+SIM = True
 
 def setup():
     global vehicle
@@ -95,8 +95,8 @@ def return_to_launch():
     vehicle.mode = VehicleMode("RTL")
 
     # Wait until the vehicle lands to process the next command
-    while vehicle.location.global_relative_frame.alt >= 0:
-        time.sleep(1)
+    # while vehicle.location.global_relative_frame.alt >= 0:
+    #   time.sleep(1)
 
 
 def end_flight():
@@ -188,7 +188,10 @@ def clearGPSQueue():
     gps_coordinates = Queue()
 
 def check_user_control():
-    global vehicle
+    global vehicle, SIM
+
+    if SIM == False:
+        return False
 
     value = vehicle.channels['8']
 
@@ -199,8 +202,36 @@ def check_user_control():
     else:
         return False
 
+def printData():
+    global vehicle, gps_coordinates
+
+    print "Alt: ", vehicle.location.global_relative_frame.alt
+    print "Lat: ", vehicle.location.global_relative_frame.lat
+    print "Lon: ", vehicle.location.global_relative_frame.lon
+    print "Mode: ", vehicle.mode
+    print "GPS: "
+
+    '''
+    # Print the GPS points
+    copy = []
+    size = 0
+    while True:
+        try:
+            coordinate = gps_coordinates.get_nowait()
+            copy.append(coordinate)
+            size = size + 1
+        except Empty:
+            break
+
+    for coordinate in copy:
+        gps_coordinates.put(coordinate)
+
+    print "Size: ", size
+    print copy
+    '''
 
 def shell_handler(command):
+    global gps_coordinates
 
     print command
 
@@ -226,14 +257,17 @@ def shell_handler(command):
 
     elif command == "goto":
         # Non-blocking? 
-        global gps_coordinates
 
         # Make sure there is a location to go to
+        location = []
         try:
-            location = gps_coordinates.get(block=False)
-            go_to_coordinate(location(0), location(1), altitude=10, speed=5)
+            location = gps_coordinates.get_nowait()
         except:
-            print "GPS queue empty"
+            print "No available GPS coordinate"
+            return
+
+        print location
+        go_to_coordinate(location(0), location(1), altitude=10, speed=5)
 
     elif command == "ignore":
         ignore_target = True
@@ -243,6 +277,12 @@ def shell_handler(command):
 
     elif command == "clearq":
         clearGPSQueue()
+
+    elif command == "print":
+        printData()
+
+    elif command == "hold":
+        freeze()
 
     else:
         print "Not a vaild command."
@@ -261,11 +301,18 @@ def process_image_data():
 
     while True:
 
+        # If it is time to shutdown
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                print "Shutting down."
+                break
+
         # image_socket is non-blocking, so an exception might be raised if there is no data in the socket
         try:
+            # Get the data
             data_string = client_socket.recv(512)
 
-            # Clear the current data
+            # Clear the current data in the shared queue
             try:
                 image_data.get(block=False)
             except:
@@ -274,22 +321,19 @@ def process_image_data():
             # Add the new data
             data = pickle.loads(data_string)
             image_data.put(data)
-            # print data
 
             # If the target has been seen, set the flag
             with identified.get_lock():
                 if data != -1:
                     print "Saw something!"
+                    print data
                     identified.value = 1
                 else:
                     identified.value = 0
         except:
             pass
 
-        # If it is time to shutdown
-        with shutdown.get_lock():
-            if shutdown.value == 1:
-                break
+        
 
 def process_gps_data():
     global gps_coordinates, shutdown, gps_socket
@@ -304,19 +348,20 @@ def process_gps_data():
 
     while True:
         # gps_socket is non-blocking, so an exception might be raised if there is no data in the socket
+        
+        # If it is time to shut down
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                print "Shutting down"
+                break
+
         try:
             data_string = client_socket.recv(512)
             data = pickle.loads(data_string)
             print data
             gps_coordinates.put(data)
         except:
-            pass
-
-        # If it is time to shut down
-        with shutdown.get_lock():
-            if shutdown.value == 1:
-                break
-
+            continue
 
 def main():
     global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown
@@ -370,7 +415,7 @@ def main():
             pass
 
     # Initialize and arm the vehicle
-    # setup()
+    setup()
 
     # Time variable
     last_time = time.time()
@@ -412,19 +457,15 @@ def main():
                 break
 
     # Wait for the child processes to terminate
-    ShellProcess.join()
-    print "Shell process shut down"
     GPSProcess.join()
     print "GPS process shut down"
     ImageProcess.join()
     print "Image process shut down"
-    OverrideChecker.join()
-    print "Override checker shut down"
 
     # Shutdown the sockets
-    image_socket.shutdown()
-    gps_socket.shutdown()
-    shell_socket.shutdown()
+    image_socket.shutdown(SHUT_RDWR)
+    gps_socket.shutdown(SHUT_RDWR)
+    shell_socket.shutdown(SHUT_RDWR)
 
     # Close the sockets
     image_socket.close()
