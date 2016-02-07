@@ -28,6 +28,7 @@ shell_socket = None
 # Shared queues
 image_data = Queue(maxsize=1)
 gps_coordinates = Queue()
+shell_commands = Queue()
 
 # Simulator flag
 SIM = True
@@ -190,7 +191,7 @@ def clearGPSQueue():
 def check_user_control():
     global vehicle, SIM
 
-    if SIM == False:
+    if SIM == True:
         return False
 
     value = vehicle.channels['8']
@@ -363,6 +364,39 @@ def process_gps_data():
         except:
             continue
 
+def process_shell_data():
+    global shell_commands, shutdown, shell_socket
+
+    # Connect the shell socket
+    # Must connect to shell before the UAV will arm
+    while True:
+        try:
+            client_socket, address = shell_socket.accept()
+            print "Shell socket connected from ", address
+            break
+        except:
+            pass
+
+    while True:
+    
+        # If it is time to shut down
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                print "Shutting down"
+                break
+
+        # shell_socket is non-blocking, so an exception might be raised if there is no data in the socket
+        try:
+            # Recieve data from shell socket
+            data_string = client_socket.recv(512)
+            data = pickle.loads(data_string)
+
+            # Put it in the commands queue to be processed
+            shell_commands.put(data)
+            
+        except:
+            pass
+
 def main():
     global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown
 
@@ -404,15 +438,9 @@ def main():
     GPSProcess = Process(target=process_gps_data)
     GPSProcess.start()
 
-    # Connect the shell socket
-    # Must connect to shell before the UAV will arm
-    while True:
-        try:
-            client_socket, address = shell_socket.accept()
-            print "Shell socket connected from ", address
-            break
-        except:
-            pass
+    # Shell information handler
+    ShellProcess = Process(target=process_shell_data)
+    ShellProcess.start()
 
     # Initialize and arm the vehicle
     setup()
@@ -427,29 +455,25 @@ def main():
         if check_user_control() == True:
             vehicle.mode = VehicleMode("LOITER")
 
-        # shell_socket is non-blocking, so an exception might be raised if there is no data in the socket
+        # See if there are any new commands queued up and act accordingly
         try:
-            # Recieve data from shell socket
-            data_string = client_socket.recv(512)
-            data = pickle.loads(data_string)
-
-            # Act accordingly
+            data = shell_commands.get_nowait()
             shell_handler(data)
         except:
             pass
 
         # Check if the circle needs to be expanded
-        if vehicle.mode == "CIRCLE" and (time.time() - last_time > circle_period):
+        if SIM == False and vehicle.mode == "CIRCLE" and (time.time() - last_time > circle_period):
             update_circle_params()
             last_time = time.time()
-            print "EXPANDING DONG"
+            print "Expanding circle."
 
         # Check and see if the target has been found
         # Stop only if it has and you want to stop
         with identified.get_lock():
             if identified.value == 1 and ignore_target == False:
                 print "Target Found!!"
-                freeze()
+                stop()
 
         # If it is time to shut down
         with shutdown.get_lock():
@@ -461,6 +485,8 @@ def main():
     print "GPS process shut down"
     ImageProcess.join()
     print "Image process shut down"
+    ShellProcess.join()
+    print "Shell process shut down"
 
     # Shutdown the sockets
     image_socket.shutdown(SHUT_RDWR)
@@ -471,6 +497,8 @@ def main():
     image_socket.close()
     gps_socket.close()
     shell_socket.close()
+
+    exit()
 
     
 
