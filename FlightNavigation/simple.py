@@ -49,7 +49,7 @@ def setup():
         time.sleep(1)
 
     # Arm the vehicle
-    arm()
+    # arm()
 
     print "Set default/target airspeed to 3"
     vehicle.airspeed = 3
