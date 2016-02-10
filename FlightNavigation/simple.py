@@ -9,6 +9,7 @@ from multiprocessing import Queue, Process, Value
 import socket
 import os
 import math
+import copy
 
 # Global Variables
 vehicle = None
@@ -31,7 +32,7 @@ gps_coordinates = Queue()
 shell_commands = Queue()
 
 # Simulator flag
-SIM = True
+SIM = False
 
 def setup():
     global vehicle
@@ -121,8 +122,8 @@ def end_flight():
 def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
     global vehicle
 
-    vehicle.mode = VehicleMode("GUIDED")
     print "Navigating to point"
+    vehicle.mode = VehicleMode("GUIDED")
     point = LocationGlobalRelative(latitude, longitude, altitude)
     vehicle.simple_goto(point, groundspeed=speed)
 
@@ -174,12 +175,8 @@ def update_circle_params():
 def stop():
     global vehicle
 
-    vehicle.mode = VehicleMode("LOITER")
-
-def freeze():
-    global vehicle
-
-    vehicle.mode = VehicleMode("POSHOLD")
+    vehicle.mode = VehicleMode("GUIDED")
+    print "stopped"
 
 def clearGPSQueue():
     global gps_coordinates
@@ -212,27 +209,19 @@ def printData():
     print "Mode: ", vehicle.mode
     print "GPS: "
 
-    '''
+'''
     # Print the GPS points
-    copy = []
-    size = 0
     while True:
         try:
             coordinate = gps_coordinates.get_nowait()
-            copy.append(coordinate)
-            size = size + 1
-        except Empty:
+            print coordinate
+            gps_coordinates.put(coordinate)
+        except:
             break
-
-    for coordinate in copy:
-        gps_coordinates.put(coordinate)
-
-    print "Size: ", size
-    print copy
-    '''
+'''
 
 def shell_handler(command):
-    global gps_coordinates
+    global gps_coordinates, ignore_target
 
     print command
 
@@ -268,7 +257,7 @@ def shell_handler(command):
             return
 
         print location
-        go_to_coordinate(location(0), location(1), altitude=10, speed=5)
+        go_to_coordinate(location[0], location[1], altitude=10, speed=5)
 
     elif command == "ignore":
         ignore_target = True
@@ -281,9 +270,6 @@ def shell_handler(command):
 
     elif command == "print":
         printData()
-
-    elif command == "hold":
-        freeze()
 
     else:
         print "Not a vaild command."
@@ -489,9 +475,9 @@ def main():
     print "Shell process shut down"
 
     # Shutdown the sockets
-    image_socket.shutdown(SHUT_RDWR)
-    gps_socket.shutdown(SHUT_RDWR)
-    shell_socket.shutdown(SHUT_RDWR)
+    image_socket.shutdown(socket.SHUT_RDWR)
+    gps_socket.shutdown(socket.SHUT_RDWR)
+    shell_socket.shutdown(socket.SHUT_RDWR)
 
     # Close the sockets
     image_socket.close()

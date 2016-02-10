@@ -17,7 +17,7 @@ def main():
     while True:
 
         print "\n---------------------------------------------------------------------------\n"
-        print "Options: takeoff, land, end, stop, circle, goto, ignore, search, clearq, print, hold"
+        print "Options: takeoff, land, end, stop, circle, goto, ignore, search, clearq, print"
 
         command = raw_input("What shall I do next?\n")
         data = pickle.dumps(command)
