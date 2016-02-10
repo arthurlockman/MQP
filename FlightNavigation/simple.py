@@ -72,6 +72,7 @@ def arm():
 def takeoff(atargetaltitude=10):
     global vehicle
 
+    print "arming"
     # Arm the UAV
     arm()
 
@@ -124,6 +125,10 @@ def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
 
     print "Navigating to point"
     vehicle.mode = VehicleMode("GUIDED")
+    print latitude
+    print longitude
+    print type(latitude)
+    print type(longitude)
     point = LocationGlobalRelative(latitude, longitude, altitude)
     vehicle.simple_goto(point, groundspeed=speed)
 
@@ -221,7 +226,7 @@ def printData():
 '''
 
 def shell_handler(command):
-    global gps_coordinates, ignore_target
+    global gps_coordinates, ignore_target, vehicle
 
     print command
 
@@ -270,6 +275,10 @@ def shell_handler(command):
 
     elif command == "print":
         printData()
+
+    elif command == "override":
+        vehicle.mode = VehicleMode("LOITER") 
+
 
     else:
         print "Not a vaild command."
