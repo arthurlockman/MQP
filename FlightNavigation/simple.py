@@ -13,7 +13,7 @@ import copy
 
 # Global Variables
 vehicle = None
-ignore_target = False
+ignore_target = True
 tangential_speed = 100 # cm/s
 circle_period = sys.maxint
 
