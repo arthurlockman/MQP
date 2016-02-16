@@ -499,7 +499,7 @@ def main():
 
             (cx, cy) = last_image_location
             dX = (cx - 320) * X / 640
-            dY = (cy - 240) * Y / 340
+            dY = (cy - 240) * Y / 480
 
             print "dX: ", dX
             print "dY: ", dY
