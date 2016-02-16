@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 
 from dronekit import connect, VehicleMode, LocationGlobalRelative
+from pymavlink import mavutil
 import time
 import argparse
 import sys
@@ -11,11 +12,13 @@ import os
 import math
 import copy
 
-# Global Variables
+# Global Variables and Flags
 vehicle = None
 ignore_target = True
 tangential_speed = 100 # cm/s
 circle_period = sys.maxint
+homing = False
+last_image_location = (0, 0)
 
 # Process shared flags
 identified = None
@@ -32,7 +35,7 @@ gps_coordinates = Queue()
 shell_commands = Queue()
 
 # Simulator flag
-SIM = False
+SIM = True
 
 def setup():
     global vehicle
@@ -206,13 +209,15 @@ def check_user_control():
         return False
 
 def printData():
-    global vehicle, gps_coordinates
+    global vehicle, gps_coordinates, homing
 
     print "Alt: ", vehicle.location.global_relative_frame.alt
     print "Lat: ", vehicle.location.global_relative_frame.lat
     print "Lon: ", vehicle.location.global_relative_frame.lon
     print "Mode: ", vehicle.mode
-    print "GPS: "
+    print "Homing: ", homing
+    print "Ignore: ", ignore_target
+    # print "GPS: "
 
 '''
     # Print the GPS points
@@ -225,8 +230,11 @@ def printData():
             break
 '''
 
+def drop():
+    # os.system('python ../experiments/gpio.py')
+
 def shell_handler(command):
-    global gps_coordinates, ignore_target, vehicle
+    global gps_coordinates, ignore_target, vehicle, homing
 
     print command
 
@@ -245,6 +253,7 @@ def shell_handler(command):
     elif command == "stop":
         # Non-blocking
         stop()
+        homing = False
 
     elif command == "circle":
         # Non-blocking
@@ -266,9 +275,11 @@ def shell_handler(command):
 
     elif command == "ignore":
         ignore_target = True
+        homing = False
 
     elif command == "search":
         ignore_target = False
+        homing = False
 
     elif command == "clearq":
         clearGPSQueue()
@@ -277,15 +288,18 @@ def shell_handler(command):
         printData()
 
     elif command == "override":
+        homing = False
         vehicle.mode = VehicleMode("LOITER") 
 
+    elif command == "drop":
+        drop()
 
     else:
         print "Not a vaild command."
 
 
 def process_image_data():
-    global image_data, identified, shutdown, image_socket
+    global image_data, identified, shutdown, image_socket, last_image_location
 
     while True:
         try:
@@ -323,6 +337,7 @@ def process_image_data():
                 if data != -1:
                     print "Saw something!"
                     print data
+                    last_image_location = data
                     identified.value = 1
                 else:
                     identified.value = 0
@@ -393,7 +408,7 @@ def process_shell_data():
             pass
 
 def main():
-    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown
+    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown, homing, last_image_location, ignore_target
 
     # Multi-core shared variables
     identified = Value('i', 0)
@@ -448,6 +463,7 @@ def main():
 
         # Check user override switch
         if check_user_control() == True:
+            homing = False
             vehicle.mode = VehicleMode("LOITER")
 
         # See if there are any new commands queued up and act accordingly
@@ -466,9 +482,45 @@ def main():
         # Check and see if the target has been found
         # Stop only if it has and you want to stop
         with identified.get_lock():
-            if identified.value == 1 and ignore_target == False:
+            if identified.value == 1 and ignore_target == False and not homing:
                 print "Target Found!!"
                 stop()
+                homing = True
+                ignore_target = True
+
+        # Home in on the taret
+        if homing == True:
+
+            alt = vehicle.location.global_relative_frame.alt
+            FOV = 48.1 # Degrees
+            angle_345 = 36.87 # degrees
+            X = 2 * alt * math.tan(math.radians(FOV/2)) * math.cos(math.radians(angle_345))
+            Y = 2 * alt * math.tan(math.radians(FOV/2)) * math.sin(math.radians(angle_345))
+
+            (cx, cy) = last_image_location
+            dX = (cx - 320) * X / 640
+            dY = (cy - 240) * Y / 340
+
+            print "dX: ", dX
+            print "dY: ", dY
+
+            # Relative to the current location
+            msg = vehicle.message_factory.set_position_target_local_ned_encode(
+            0,       # time_boot_ms (not used)
+            0, 0,    # target_system, target_component
+            mavutil.mavlink.MAV_FRAME_BODY_NED, # frame
+            0b0000111111000000, # type_mask (enable speeds and velocities only)
+            dX, dY, 0, # x, y, z positions
+            0, 0, 0, # x, y, z velocity in m/s
+            0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+            0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+            # send command to vehicle
+            vehicle.send_mavlink(msg)
+
+            if abs(dX) <= .15 and abs(dY) <= 0.15:
+                print "Centered!"
+                homing = False
+                vehicle.mode = VehicleMode("GUIDED")
 
         # If it is time to shut down
         with shutdown.get_lock():
@@ -494,9 +546,6 @@ def main():
     shell_socket.close()
 
     exit()
-
-    
-
     
 
 if __name__ == '__main__':
