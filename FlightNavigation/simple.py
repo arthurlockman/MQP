@@ -231,7 +231,7 @@ def printData():
 '''
 
 def drop():
-    # os.system('python ../experiments/gpio.py')
+    os.system('python ../experiments/drop_gpio.py')
 
 def shell_handler(command):
     global gps_coordinates, ignore_target, vehicle, homing
@@ -240,7 +240,7 @@ def shell_handler(command):
 
     if command == "takeoff":
         # Blocking
-        takeoff(5)
+        takeoff(6)
 
     elif command == "land":
         # Blocking
@@ -494,15 +494,20 @@ def main():
             alt = vehicle.location.global_relative_frame.alt
             FOV = 48.1 # Degrees
             angle_345 = 36.87 # degrees
+
+            # Calculate the actual viewing X,Y distances
             X = 2 * alt * math.tan(math.radians(FOV/2)) * math.cos(math.radians(angle_345))
             Y = 2 * alt * math.tan(math.radians(FOV/2)) * math.sin(math.radians(angle_345))
 
             (cx, cy) = last_image_location
+
+            # Calculate the actual distance between the drone the the target
+            # Scale the pixel location to the real location
             dX = (cx - 320) * X / 640
             dY = (cy - 240) * Y / 480
 
-            print "dX: ", dX
-            print "dY: ", dY
+            # print "dX: ", dX
+            # print "dY: ", dY
 
             # Relative to the current location
             msg = vehicle.message_factory.set_position_target_local_ned_encode(
