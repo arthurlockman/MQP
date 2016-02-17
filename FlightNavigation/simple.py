@@ -271,7 +271,7 @@ def shell_handler(command):
             return
 
         print location
-        go_to_coordinate(location[0], location[1], altitude=10, speed=5)
+        go_to_coordinate(location[0], location[1], altitude=6, speed=1)
 
     elif command == "ignore":
         ignore_target = True
@@ -289,10 +289,16 @@ def shell_handler(command):
 
     elif command == "override":
         homing = False
+        ignore_target = True
         vehicle.mode = VehicleMode("LOITER") 
 
     elif command == "drop":
         drop()
+
+    elif command == "kill":
+        msg = vehicle.message_factory.mav_cmd_do_flighttermination(1)
+        vehicle.send_mavlink(msg)
+        vehicle.flush()
 
     else:
         print "Not a vaild command."
