@@ -509,18 +509,35 @@ def main():
             # print "dX: ", dX
             # print "dY: ", dY
 
-            # Relative to the current location
-            msg = vehicle.message_factory.set_position_target_local_ned_encode(
-            0,       # time_boot_ms (not used)
-            0, 0,    # target_system, target_component
-            mavutil.mavlink.MAV_FRAME_BODY_NED, # frame
-            0b0000111111000000, # type_mask (enable speeds and velocities only)
-            dX, dY, 0, # x, y, z positions
-            0, 0, 0, # x, y, z velocity in m/s
-            0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
-            0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+            yaw = vehicle.attitude.yaw #radians
+            location = vehicle.location.global_relative_frame #latlon
+
+            #rotate to earth-frame angles
+            x_ef = dY*math.cos(yaw) - dX*math.sin(yaw)
+            y_ef = dY*math.sin(yaw) + dX*math.cos(yaw)
+
+            latlon_to_m = 111319.5   # converts lat/lon to meters
+            lat = x_ef / latlon_to_m + location.lat
+            lon = y_ef / latlon_to_m + location.lon
+            alt = location.alt
+
+            msg = vehicle.message_factory.set_position_target_global_int_encode(
+                                                        0,       # time_boot_ms (not used)
+                                                        0, 0,    # target system, target component
+                                                        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, # frame
+                                                        0b0000111111111000, # type_mask (only speeds enabled)
+                                                        lat*1e7, # lat_int - X Position in WGS84 frame in 1e7 * meters
+                                                        lon*1e7, # lon_int - Y Position in WGS84 frame in 1e7 * meters
+                                                        alt, # alt - Altitude in meters in AMSL altitude, not WGS84 if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
+                                                        0, # X velocity in NED frame in m/s
+                                                        0, # Y velocity in NED frame in m/s
+                                                        0, # Z velocity in NED frame in m/s
+                                                        0, 0, 0, # afx, afy, afz acceleration (not supported yet, ignored in GCS_Mavlink)
+                                                        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+
             # send command to vehicle
             vehicle.send_mavlink(msg)
+            vehicle.flush()
 
             if abs(dX) <= .15 and abs(dY) <= 0.15:
                 print "Centered!"
