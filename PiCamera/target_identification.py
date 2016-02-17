@@ -128,6 +128,7 @@ def identifySquare():
                         cv2.line(image, (startX, cY), (endX, cY), (0, 0, 255), 3)
                         cv2.line(image, (cX, startY), (cX, endY), (0, 0, 255), 3)
                         center = (cX, cY)
+                        # print center
 
                         # Serialize the data and stream it to the flight control code.
                         try:

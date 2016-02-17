@@ -35,7 +35,7 @@ gps_coordinates = Queue()
 shell_commands = Queue()
 
 # Simulator flag
-SIM = True
+SIM = False
 
 def setup():
     global vehicle
