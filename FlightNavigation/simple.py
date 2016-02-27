@@ -123,7 +123,7 @@ def end_flight():
         shutdown.value = 1
 
 
-def go_to_coordinate(latitude, longitude, altitude=10, speed=5):
+def go_to_coordinate(latitude, longitude, altitude=6, speed=1):
     global vehicle
 
     print "Navigating to point"
@@ -233,6 +233,44 @@ def printData():
 def drop():
     os.system('python ../experiments/drop_gpio.py')
 
+# http://python.dronekit.io/guide/copter/guided_mode.html
+def send_ned_velocity(velocity_x, velocity_y, velocity_z, duration):
+    """
+    Move vehicle in direction based on specified velocity vectors.
+    """
+    msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0,       # time_boot_ms (not used)
+        0, 0,    # target system, target component
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+        0b0000111111000111, # type_mask (only speeds enabled)
+        0, 0, 0, # x, y, z positions (not used)
+        velocity_x, velocity_y, velocity_z, # x, y, z velocity in m/s
+        0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+
+
+    # send command to vehicle on 1 Hz cycle
+    for x in range(0,duration):
+        vehicle.send_mavlink(msg)
+        time.sleep(1)
+
+def goto_position_target_local_ned(north, east, down):
+    """
+    Send SET_POSITION_TARGET_LOCAL_NED command to request the vehicle fly to a specified
+    location in the North, East, Down frame.
+    """
+    msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0,       # time_boot_ms (not used)
+        0, 0,    # target system, target component
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+        0b0000111111111000, # type_mask (only positions enabled)
+        north, east, down,
+        0, 0, 0, # x, y, z velocity in m/s  (not used)
+        0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+    # send command to vehicle
+    vehicle.send_mavlink(msg)
+
 def shell_handler(command):
     global gps_coordinates, ignore_target, vehicle, homing
 
@@ -243,7 +281,7 @@ def shell_handler(command):
         takeoff(6)
 
     elif command == "land":
-        # Blocking
+        # Non-blocking
         return_to_launch()
 
     elif command == "end":
@@ -290,15 +328,31 @@ def shell_handler(command):
     elif command == "override":
         homing = False
         ignore_target = True
-        vehicle.mode = VehicleMode("LOITER") 
+        vehicle.mode = VehicleMode("LOITER")
+        time.sleep(1)
 
     elif command == "drop":
         drop()
 
-    elif command == "kill":
-        msg = vehicle.message_factory.mav_cmd_do_flighttermination(1)
-        vehicle.send_mavlink(msg)
-        vehicle.flush()
+    elif command.split()[0] == "vel":
+        vehicle.mode = VehicleMode("GUIDED") 
+        try:
+            vx = float(command.split()[1])
+            vy = float(command.split()[2])
+            vz = float(command.split()[3])
+            send_ned_velocity(vx, vy, vz, 1)
+        except:
+            print "Poorly formatted."
+
+    elif command.split()[0] == "pos":
+        vehicle.mode = VehicleMode("GUIDED") 
+        try:
+            north = float(command.split()[1])
+            east = float(command.split()[2])
+            down = float(command.split()[3])
+            goto_position_target_local_ned(north, east, down)
+        except:
+            print "Poorly formatted."
 
     else:
         print "Not a vaild command."
@@ -494,9 +548,42 @@ def main():
                 homing = True
                 ignore_target = True
 
-        # Home in on the taret
+        # Center above the taret
         if homing == True:
+            pass
 
+        # If it is time to shut down
+        with shutdown.get_lock():
+            if shutdown.value == 1:
+                break
+
+    # Wait for the child processes to terminate
+    GPSProcess.join()
+    print "GPS process shut down"
+    ImageProcess.join()
+    print "Image process shut down"
+    ShellProcess.join()
+    print "Shell process shut down"
+
+    # Shutdown the sockets
+    image_socket.shutdown(socket.SHUT_RDWR)
+    gps_socket.shutdown(socket.SHUT_RDWR)
+    shell_socket.shutdown(socket.SHUT_RDWR)
+
+    # Close the sockets
+    image_socket.close()
+    gps_socket.close()
+    shell_socket.close()
+
+    exit()
+    
+
+if __name__ == '__main__':
+    main()
+
+
+# For future reference
+'''
             alt = vehicle.location.global_relative_frame.alt
             FOV = 48.1 # Degrees
             angle_345 = 36.87 # degrees
@@ -549,32 +636,4 @@ def main():
                 print "Centered!"
                 homing = False
                 vehicle.mode = VehicleMode("GUIDED")
-
-        # If it is time to shut down
-        with shutdown.get_lock():
-            if shutdown.value == 1:
-                break
-
-    # Wait for the child processes to terminate
-    GPSProcess.join()
-    print "GPS process shut down"
-    ImageProcess.join()
-    print "Image process shut down"
-    ShellProcess.join()
-    print "Shell process shut down"
-
-    # Shutdown the sockets
-    image_socket.shutdown(socket.SHUT_RDWR)
-    gps_socket.shutdown(socket.SHUT_RDWR)
-    shell_socket.shutdown(socket.SHUT_RDWR)
-
-    # Close the sockets
-    image_socket.close()
-    gps_socket.close()
-    shell_socket.close()
-
-    exit()
-    
-
-if __name__ == '__main__':
-    main()
+'''
