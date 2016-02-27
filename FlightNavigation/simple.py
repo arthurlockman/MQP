@@ -15,10 +15,11 @@ import copy
 # Global Variables and Flags
 vehicle = None
 ignore_target = True
-tangential_speed = 100 # cm/s
+tangential_speed = 50 # cm/s
 circle_period = sys.maxint
 homing = False
 last_image_location = (0, 0)
+home_location = None
 
 # Process shared flags
 identified = None
@@ -73,7 +74,8 @@ def arm():
 
 
 def takeoff(atargetaltitude=10):
-    global vehicle
+    global vehicle, home_location
+    home_location = copy.deepcopy(vehicle.location.global_frame)
 
     print "arming"
     # Arm the UAV
@@ -209,7 +211,7 @@ def check_user_control():
         return False
 
 def printData():
-    global vehicle, gps_coordinates, homing
+    global vehicle, gps_coordinates, homing, home_location
 
     print "Alt: ", vehicle.location.global_relative_frame.alt
     print "Lat: ", vehicle.location.global_relative_frame.lat
@@ -217,6 +219,7 @@ def printData():
     print "Mode: ", vehicle.mode
     print "Homing: ", homing
     print "Ignore: ", ignore_target
+    print "Distance from home: ", get_distance_metres(home_location, vehicle.location.global_frame)
     # print "GPS: "
 
 '''
@@ -232,6 +235,19 @@ def printData():
 
 def drop():
     os.system('python ../experiments/drop_gpio.py')
+
+# http://python.dronekit.io/guide/copter/guided_mode.html
+def get_distance_metres(aLocation1, aLocation2):
+    """
+    Returns the ground distance in metres between two `LocationGlobal` or `LocationGlobalRelative` objects.
+
+    This method is an approximation, and will not be accurate over large distances and close to the
+    earth's poles. It comes from the ArduPilot test code:
+    https://github.com/diydrones/ardupilot/blob/master/Tools/autotest/common.py
+    """
+    dlat = aLocation2.lat - aLocation1.lat
+    dlong = aLocation2.lon - aLocation1.lon
+    return math.sqrt((dlat*dlat) + (dlong*dlong)) * 1.113195e5
 
 # http://python.dronekit.io/guide/copter/guided_mode.html
 def send_ned_velocity(velocity_x, velocity_y, velocity_z, duration):
@@ -255,6 +271,11 @@ def send_ned_velocity(velocity_x, velocity_y, velocity_z, duration):
         time.sleep(1)
 
 def goto_position_target_local_ned(north, east, down):
+
+    if down >= -1:
+        print "Bad altitude parameter!!"
+        return
+
     """
     Send SET_POSITION_TARGET_LOCAL_NED command to request the vehicle fly to a specified
     location in the North, East, Down frame.
@@ -350,6 +371,9 @@ def shell_handler(command):
             north = float(command.split()[1])
             east = float(command.split()[2])
             down = float(command.split()[3])
+            print north
+            print east
+            print down
             goto_position_target_local_ned(north, east, down)
         except:
             print "Poorly formatted."
