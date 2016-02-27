@@ -148,7 +148,7 @@ def circle_POI():
     ignore_target = False
 
     # The circle radius in cm. Max 10000
-    # The tangential speed is 100 cm/s
+    # The tangential speed is 50 cm/s
     speed = tangential_speed
 
     # Radius has to be increments of 100 cm and rate has to be in increments of 1 degree
@@ -371,9 +371,6 @@ def shell_handler(command):
             north = float(command.split()[1])
             east = float(command.split()[2])
             down = float(command.split()[3])
-            print north
-            print east
-            print down
             goto_position_target_local_ned(north, east, down)
         except:
             print "Poorly formatted."

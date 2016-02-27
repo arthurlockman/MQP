@@ -96,7 +96,7 @@ def identifySquare():
             approx = cv2.approxPolyDP(c, 0.01 * peri, True)
 
             # ensure that the approximated contour is "roughly" rectangular
-            if len(approx) >= 4 and len(approx) <= 6:
+            if len(approx) >= 4 and len(approx) <= 7:
                 # compute the bounding box of the approximated contour and
                 # use the bounding box to compute the aspect ratio
                 (x, y, w, h) = cv2.boundingRect(approx)
@@ -109,9 +109,9 @@ def identifySquare():
 
                 # compute whether or not the width and height, solidity, and
                 # aspect ratio of the contour falls within appropriate bounds
-                keepDims = w > 30 and h > 30
+                keepDims = w > 15 and h > 15
                 keepSolidity = solidity > 0.8
-                keepAspectRatio= aspectRatio >= 0.8 and aspectRatio <= 1.2
+                keepAspectRatio= aspectRatio >= 0.7 and aspectRatio <= 1.3
 
                 # ensure that the contour passes all our tests
                 if keepDims and keepSolidity and keepAspectRatio:
