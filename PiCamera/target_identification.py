@@ -219,11 +219,13 @@ def main():
     shutdown = Value('i', 0)
 
     # Start the client socket code to stream to the flight control script
-    try:
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(('localhost', 5001))
-    except:
-        print "Did not connect to sockets."
+    while True:
+        try:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.connect(('localhost', 5001))
+            break
+        except:
+            print "Did not connect to sockets."
 
     # Start all the processes
 

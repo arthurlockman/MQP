@@ -36,7 +36,7 @@ shell_commands = Queue()
 last_image_location = Queue(maxsize=1)
 
 # Simulator flag
-SIM = True
+SIM = False
 
 def setup():
     global vehicle
@@ -200,6 +200,7 @@ def clearGPSQueue():
 def check_user_control():
     global vehicle, SIM
 
+    return False
     if SIM == True:
         return False
 
@@ -296,6 +297,7 @@ def goto_position_target_local_ned(north, east, down):
         0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
     # send command to vehicle
     vehicle.send_mavlink(msg)
+    print "Going to ", north, east, down
 
 def differential_NED(north, east, down):
     global vehicle
