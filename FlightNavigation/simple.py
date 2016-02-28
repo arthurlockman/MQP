@@ -18,7 +18,6 @@ ignore_target = True
 tangential_speed = 50 # cm/s
 circle_period = sys.maxint
 homing = False
-last_image_location = (0, 0)
 home_location = None
 
 # Process shared flags
@@ -34,9 +33,10 @@ shell_socket = None
 image_data = Queue(maxsize=1)
 gps_coordinates = Queue()
 shell_commands = Queue()
+last_image_location = Queue(maxsize=1)
 
 # Simulator flag
-SIM = False
+SIM = True
 
 def setup():
     global vehicle
@@ -96,7 +96,6 @@ def takeoff(atargetaltitude=10):
             break
         time.sleep(1)
 
-    condition_yaw(0)
 
 
 def return_to_launch():
@@ -273,7 +272,6 @@ def condition_yaw(heading, relative=False):
         0, 0, 0)    # param 5 ~ 7 not used
     # send command to vehicle
     vehicle.send_mavlink(msg)
-    print "Message sent"
 
 
 def goto_position_target_local_ned(north, east, down):
@@ -329,14 +327,18 @@ def center():
     X = 2 * alt * math.tan(math.radians(FOV/2)) * math.cos(math.radians(angle_345))
     Y = 2 * alt * math.tan(math.radians(FOV/2)) * math.sin(math.radians(angle_345))
 
-    (cx, cy) = last_image_location
+    try:
+        (cx, cy) = last_image_location.get_nowait()
+        print cx, cy
+    except:
+        return
 
     # Calculate the actual distance between the drone the the target
     # Scale the pixel location to the real location
     right = (cx - 320) * X / 640
     front = (-cy + 240) * Y / 480
 
-    print "Center: ", (dX, dY)
+    print "Center (FRD): ", (front, right)
 
 def shell_handler(command):
     global gps_coordinates, ignore_target, vehicle, homing
@@ -401,16 +403,6 @@ def shell_handler(command):
     elif command == "drop":
         drop()
 
-    elif command.split()[0] == "vel":
-        vehicle.mode = VehicleMode("GUIDED") 
-        try:
-            vx = float(command.split()[1])
-            vy = float(command.split()[2])
-            vz = float(command.split()[3])
-            send_ned_velocity(vx, vy, vz, 1)
-        except:
-            print "Poorly formatted."
-
     elif command.split()[0] == "pos":
         vehicle.mode = VehicleMode("GUIDED") 
         try:
@@ -474,7 +466,11 @@ def process_image_data():
                 if data != -1:
                     print "Saw something!"
                     print data
-                    last_image_location = data
+                    try:
+                        last_image_location.get_nowait()
+                    except:
+                        pass
+                    last_image_location.put(data)
                     identified.value = 1
                 else:
                     identified.value = 0
@@ -545,7 +541,7 @@ def process_shell_data():
             pass
 
 def main():
-    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown, homing, last_image_location, ignore_target
+    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown, homing, ignore_target
 
     # Multi-core shared variables
     identified = Value('i', 0)

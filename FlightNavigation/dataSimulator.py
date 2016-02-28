@@ -12,12 +12,12 @@ def main():
         except:
             pass
 
-    # while True:
-    #     try:
-    #         image_socket.connect(('localhost', 5001))
-    #         break
-    #     except:
-    #         pass
+    while True:
+        try:
+            image_socket.connect(('localhost', 5001))
+            break
+        except:
+            pass
 
     while True:
 
