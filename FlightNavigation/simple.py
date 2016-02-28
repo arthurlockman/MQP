@@ -275,27 +275,6 @@ def condition_yaw(heading, relative=False):
     vehicle.send_mavlink(msg)
     print "Message sent"
 
-# http://python.dronekit.io/guide/copter/guided_mode.html
-def send_ned_velocity(velocity_x, velocity_y, velocity_z, duration):
-    global vehicle
-    """
-    Move vehicle in direction based on specified velocity vectors.
-    """
-    msg = vehicle.message_factory.set_position_target_local_ned_encode(
-        0,       # time_boot_ms (not used)
-        0, 0,    # target system, target component
-        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
-        0b0000111111000111, # type_mask (only speeds enabled)
-        0, 0, 0, # x, y, z positions (not used)
-        velocity_x, velocity_y, velocity_z, # x, y, z velocity in m/s
-        0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
-        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
-
-
-    # send command to vehicle on 1 Hz cycle
-    for x in range(0,duration):
-        vehicle.send_mavlink(msg)
-        time.sleep(1)
 
 def goto_position_target_local_ned(north, east, down):
     global vehicle
@@ -338,6 +317,26 @@ def differential_FRD(front, right, down):
     N = right * math.sin(yaw) + front * math.cos(yaw)
 
     differential_NED(N, E, down)
+
+def center():
+    global last_image_location
+
+    alt = vehicle.location.global_relative_frame.alt
+    FOV = 48.1 # Degrees
+    angle_345 = 36.87 # degrees
+
+    # Calculate the actual viewing X,Y distances
+    X = 2 * alt * math.tan(math.radians(FOV/2)) * math.cos(math.radians(angle_345))
+    Y = 2 * alt * math.tan(math.radians(FOV/2)) * math.sin(math.radians(angle_345))
+
+    (cx, cy) = last_image_location
+
+    # Calculate the actual distance between the drone the the target
+    # Scale the pixel location to the real location
+    right = (cx - 320) * X / 640
+    front = (-cy + 240) * Y / 480
+
+    print "Center: ", (dX, dY)
 
 def shell_handler(command):
     global gps_coordinates, ignore_target, vehicle, homing
@@ -428,6 +427,9 @@ def shell_handler(command):
             condition_yaw(angle)
         except:
             print "Poorly formatted."
+
+    elif command == "center":
+        center()
 
     else:
         print "Not a vaild command."
