@@ -36,7 +36,7 @@ shell_commands = Queue()
 last_image_location = Queue(maxsize=1)
 
 # Simulator flag
-SIM = True
+SIM = False
 
 def setup():
     global vehicle
@@ -353,6 +353,7 @@ def center():
         return True
     else:
         differential_FRD(front, right, 0)
+        return False
 
 def shell_handler(command):
     global gps_coordinates, ignore_target, vehicle, shell_commands
@@ -433,12 +434,17 @@ def shell_handler(command):
     elif command == "center":
         while center() == False:
             if check_user_control() == True:
+                print "User override break"
+                break
+            else:
                 try:
                     data = shell_commands.get_nowait()
                     shell_commands.put(data)
+                    print "Shell break"
                     break
-            else:
-                break
+                except:
+                    pass
+        print "Done centering."
 
     else:
         print "Not a vaild command."
