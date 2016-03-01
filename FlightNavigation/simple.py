@@ -17,8 +17,8 @@ vehicle = None
 ignore_target = True
 tangential_speed = 50 # cm/s
 circle_period = sys.maxint
-homing = False
 home_location = None
+last_centering_time = 0
 
 # Process shared flags
 identified = None
@@ -36,7 +36,7 @@ shell_commands = Queue()
 last_image_location = Queue(maxsize=1)
 
 # Simulator flag
-SIM = False
+SIM = True
 
 def setup():
     global vehicle
@@ -200,7 +200,6 @@ def clearGPSQueue():
 def check_user_control():
     global vehicle, SIM
 
-    return False
     if SIM == True:
         return False
 
@@ -214,13 +213,12 @@ def check_user_control():
         return False
 
 def printData():
-    global vehicle, gps_coordinates, homing, home_location
+    global vehicle, gps_coordinates, home_location
 
     print "Alt: ", vehicle.location.global_relative_frame.alt
     print "Lat: ", vehicle.location.global_relative_frame.lat
     print "Lon: ", vehicle.location.global_relative_frame.lon
     print "Mode: ", vehicle.mode
-    print "Homing: ", homing
     print "Ignore: ", ignore_target
     print "Distance from home: ", get_distance_metres(home_location, vehicle.location.global_frame)
     print "N E D: ", vehicle.location.local_frame.north, vehicle.location.local_frame.east, vehicle.location.local_frame.down
@@ -319,7 +317,15 @@ def differential_FRD(front, right, down):
     differential_NED(N, E, down)
 
 def center():
-    global last_image_location
+    global last_image_location, last_centering_time
+
+    # Make sure this routine doesnt get called more than once every five seconds.
+    if time.time() - last_centering_time < 5:
+        return False
+    else:
+        last_centering_time = time.time()
+
+    print "Centering..."
 
     alt = vehicle.location.global_relative_frame.alt
     FOV = 48.1 # Degrees
@@ -333,19 +339,25 @@ def center():
         (cx, cy) = last_image_location.get_nowait()
         print cx, cy
     except:
-        return
+        print "No image data."
+        return False
 
     # Calculate the actual distance between the drone the the target
     # Scale the pixel location to the real location
     right = (cx - 320) * X / 640
     front = (-cy + 240) * Y / 480
-
     print "Center (FRD): ", (front, right)
 
-def shell_handler(command):
-    global gps_coordinates, ignore_target, vehicle, homing
+    if (abs(front) <= 0.5) and (abs(right) <= 0.5):
+        print "Centered!"
+        return True
+    else:
+        differential_FRD(front, right, 0)
 
-    print command
+def shell_handler(command):
+    global gps_coordinates, ignore_target, vehicle, shell_commands
+
+    print "Command recieved: ", command
 
     if command == "takeoff":
         # Blocking
@@ -362,7 +374,6 @@ def shell_handler(command):
     elif command == "stop":
         # Non-blocking
         stop()
-        homing = False
 
     elif command == "circle":
         # Non-blocking
@@ -384,11 +395,9 @@ def shell_handler(command):
 
     elif command == "ignore":
         ignore_target = True
-        homing = False
 
     elif command == "search":
         ignore_target = False
-        homing = False
 
     elif command == "clearq":
         clearGPSQueue()
@@ -397,7 +406,6 @@ def shell_handler(command):
         printData()
 
     elif command == "override":
-        homing = False
         ignore_target = True
         vehicle.mode = VehicleMode("LOITER")
         time.sleep(1)
@@ -423,7 +431,14 @@ def shell_handler(command):
             print "Poorly formatted."
 
     elif command == "center":
-        center()
+        while center() == False:
+            if check_user_control() == True:
+                try:
+                    data = shell_commands.get_nowait()
+                    shell_commands.put(data)
+                    break
+            else:
+                break
 
     else:
         print "Not a vaild command."
@@ -543,7 +558,7 @@ def process_shell_data():
             pass
 
 def main():
-    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown, homing, ignore_target
+    global image_socket, gps_socket, shell_socket, vehicle, identified, shutdown, ignore_target
 
     # Multi-core shared variables
     identified = Value('i', 0)
@@ -596,11 +611,6 @@ def main():
     # Main control loop
     while True:
 
-        # Check user override switch
-        if check_user_control() == True:
-            homing = False
-            vehicle.mode = VehicleMode("LOITER")
-
         # See if there are any new commands queued up and act accordingly
         try:
             data = shell_commands.get_nowait()
@@ -617,15 +627,10 @@ def main():
         # Check and see if the target has been found
         # Stop only if it has and you want to stop
         with identified.get_lock():
-            if identified.value == 1 and ignore_target == False and not homing:
+            if identified.value == 1 and ignore_target == False:
                 print "Target Found!!"
                 stop()
-                homing = True
                 ignore_target = True
-
-        # Center above the taret
-        if homing == True:
-            pass
 
         # If it is time to shut down
         with shutdown.get_lock():
@@ -656,59 +661,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-# For future reference
-'''
-            alt = vehicle.location.global_relative_frame.alt
-            FOV = 48.1 # Degrees
-            angle_345 = 36.87 # degrees
-
-            # Calculate the actual viewing X,Y distances
-            X = 2 * alt * math.tan(math.radians(FOV/2)) * math.cos(math.radians(angle_345))
-            Y = 2 * alt * math.tan(math.radians(FOV/2)) * math.sin(math.radians(angle_345))
-
-            (cx, cy) = last_image_location
-
-            # Calculate the actual distance between the drone the the target
-            # Scale the pixel location to the real location
-            dX = (cx - 320) * X / 640
-            dY = (cy - 240) * Y / 480
-
-            # print "dX: ", dX
-            # print "dY: ", dY
-
-            yaw = vehicle.attitude.yaw #radians
-            location = vehicle.location.global_relative_frame #latlon
-
-            #rotate to earth-frame angles
-            x_ef = dY*math.cos(yaw) - dX*math.sin(yaw)
-            y_ef = dY*math.sin(yaw) + dX*math.cos(yaw)
-
-            latlon_to_m = 111319.5   # converts lat/lon to meters
-            lat = x_ef / latlon_to_m + location.lat
-            lon = y_ef / latlon_to_m + location.lon
-            alt = location.alt
-
-            msg = vehicle.message_factory.set_position_target_global_int_encode(
-                                                        0,       # time_boot_ms (not used)
-                                                        0, 0,    # target system, target component
-                                                        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, # frame
-                                                        0b0000111111111000, # type_mask (only speeds enabled)
-                                                        lat*1e7, # lat_int - X Position in WGS84 frame in 1e7 * meters
-                                                        lon*1e7, # lon_int - Y Position in WGS84 frame in 1e7 * meters
-                                                        alt, # alt - Altitude in meters in AMSL altitude, not WGS84 if absolute or relative, above terrain if GLOBAL_TERRAIN_ALT_INT
-                                                        0, # X velocity in NED frame in m/s
-                                                        0, # Y velocity in NED frame in m/s
-                                                        0, # Z velocity in NED frame in m/s
-                                                        0, 0, 0, # afx, afy, afz acceleration (not supported yet, ignored in GCS_Mavlink)
-                                                        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
-
-            # send command to vehicle
-            vehicle.send_mavlink(msg)
-            vehicle.flush()
-
-            if abs(dX) <= .15 and abs(dY) <= 0.15:
-                print "Centered!"
-                homing = False
-                vehicle.mode = VehicleMode("GUIDED")
-'''
