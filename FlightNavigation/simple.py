@@ -303,6 +303,9 @@ def differential_NED(north, east, down):
     N = vehicle.location.local_frame.north
     E = vehicle.location.local_frame.east
     D = vehicle.location.local_frame.down
+    print vehicle.location.global_relative_frame.lat
+    print "NED: ", N, E, D
+    print north, east, down
 
     goto_position_target_local_ned(N + north, E + east, D + down)
 
